@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>头脑风暴画布 - 交互原型</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; overflow: hidden; height: 100vh; }
+
+.search-bar {
+  position: absolute; top: 24px; left: 50%; transform: translateX(-50%);
+  z-index: 20; transition: all 0.6s cubic-bezier(0.4,0,0.2,1);
+  display: flex; align-items: center; gap: 8px;
+}
+.search-bar.shifted { left: 15%; transform: translateX(-50%); }
+.search-bar input {
+  width: 480px; padding: 14px 20px; border-radius: 16px;
+  border: 2px solid #e2e8f0; background: white; font-size: 15px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08); outline: none;
+  transition: all 0.6s cubic-bezier(0.4,0,0.2,1);
+}
+.search-bar.shifted input { width: 320px; border-color: #c7d2fe; }
+.search-bar input:focus { border-color: #818cf8; box-shadow: 0 4px 24px rgba(99,102,241,0.15); }
+.search-bar button {
+  padding: 12px 20px; border-radius: 12px; border: none;
+  background: #6366f1; color: white; font-size: 14px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+}
+.search-bar button:hover { background: #4f46e5; }
+
+.canvas {
+  position: relative; width: 100%; height: 100%;
+  background-image: radial-gradient(circle, #e2e8f0 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.node {
+  position: absolute; border-radius: 12px; background: white;
+  border: 2px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transition: all 0.5s cubic-bezier(0.4,0,0.2,1); opacity: 0; transform: scale(0.8);
+}
+.node.visible { opacity: 1; transform: scale(1); }
+
+.idea-node { width: 220px; padding: 16px; }
+.idea-node .bar { height: 4px; border-radius: 4px; background: linear-gradient(90deg, #f59e0b, #f97316); margin-bottom: 12px; }
+.idea-node .text { font-size: 14px; color: #334155; font-weight: 600; }
+
+.direction-node { width: 260px; cursor: default; }
+.direction-node .header { padding: 12px 14px 8px; }
+.direction-node .title { font-size: 14px; font-weight: 600; color: #1e293b; margin-bottom: 4px; }
+.direction-node .summary { font-size: 12px; color: #64748b; line-height: 1.5; }
+.direction-node .keywords { padding: 0 14px 8px; display: flex; gap: 4px; flex-wrap: wrap; }
+.direction-node .kw { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #f1f5f9; color: #64748b; }
+.direction-node .actions {
+  display: flex; border-top: 1px solid #f1f5f9; padding: 8px 14px;
+  justify-content: space-around;
+}
+.direction-node .actions button {
+  font-size: 12px; padding: 4px 12px; border-radius: 8px; border: 1px solid #e2e8f0;
+  background: white; cursor: pointer; transition: all 0.15s;
+}
+.direction-node .actions .expand { color: #6366f1; border-color: #c7d2fe; }
+.direction-node .actions .expand:hover { background: #eef2ff; }
+.direction-node .actions .confirm { color: #059669; border-color: #a7f3d0; }
+.direction-node .actions .confirm:hover { background: #ecfdf5; }
+.direction-node .actions .pending-btn { color: #d97706; border-color: #fde68a; }
+.direction-node .actions .pending-btn:hover { background: #fffbeb; }
+
+.direction-node.confirmed { border-color: #a7f3d0; background: #f0fdf4; }
+.direction-node.pending-status { border-color: #fde68a; background: #fffbeb; }
+.direction-node .badge {
+  position: absolute; top: -8px; right: 12px; font-size: 10px; padding: 2px 8px;
+  border-radius: 6px; font-weight: 600;
+}
+.badge.confirmed-badge { background: #059669; color: white; }
+.badge.pending-badge { background: #d97706; color: white; }
+
+.direction-node .expand-input {
+  display: none; padding: 8px 14px; border-top: 1px solid #f1f5f9;
+}
+.direction-node .expand-input.show { display: flex; gap: 6px; align-items: center; }
+.direction-node .expand-input input {
+  flex: 1; padding: 6px 10px; border-radius: 8px; border: 1px solid #c7d2fe;
+  font-size: 12px; outline: none;
+}
+.direction-node .expand-input button {
+  padding: 6px 12px; border-radius: 8px; border: none;
+  background: #6366f1; color: white; font-size: 12px; cursor: pointer;
+}
+
+.edge { position: absolute; pointer-events: none; z-index: -1; }
+.edge svg { overflow: visible; }
+.edge path { fill: none; stroke: #c7d2fe; stroke-width: 2; }
+
+.panel {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 280px;
+  background: white; border-left: 1px solid #e2e8f0; padding: 20px 16px;
+  overflow-y: auto; z-index: 10;
+  box-shadow: -4px 0 20px rgba(0,0,0,0.04);
+}
+.panel h3 { font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 16px; }
+.panel-section { margin-bottom: 24px; }
+.panel-section .section-title {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+  margin-bottom: 8px; padding-bottom: 6px; border-bottom: 2px solid;
+}
+.section-confirmed .section-title { color: #059669; border-color: #a7f3d0; }
+.section-pending .section-title { color: #d97706; border-color: #fde68a; }
+.section-next .section-title { color: #6366f1; border-color: #c7d2fe; }
+
+.panel-item {
+  padding: 8px 10px; border-radius: 8px; margin-bottom: 6px;
+  font-size: 12px; cursor: grab; transition: all 0.15s;
+}
+.panel-item:hover { transform: translateX(-2px); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.section-confirmed .panel-item { background: #f0fdf4; color: #065f46; border-left: 3px solid #059669; }
+.section-pending .panel-item { background: #fffbeb; color: #92400e; border-left: 3px solid #d97706; }
+.section-next .panel-item { background: #eef2ff; color: #3730a3; border-left: 3px solid #6366f1; }
+.panel-item .item-title { font-weight: 600; margin-bottom: 2px; }
+.panel-item .item-desc { font-size: 11px; opacity: 0.7; }
+
+.empty-hint { font-size: 12px; color: #94a3b8; font-style: italic; }
+
+.hint {
+  position: absolute; bottom: 60px; left: calc(50% - 140px);
+  background: white; padding: 10px 20px; border-radius: 10px;
+  font-size: 13px; color: #64748b; box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  z-index: 15; transition: opacity 0.3s;
+}
+</style>
+</head>
+<body>
+
+<div class="canvas" id="canvas">
+  <div class="search-bar" id="searchBar">
+    <input type="text" id="searchInput" placeholder="输入你的想法，例如：我想做一款营销软件..." value="我想做一款营销软件" />
+    <button onclick="handleSearch()">探索</button>
+  </div>
+
+  <div class="panel">
+    <h3>决策面板</h3>
+    <div class="panel-section section-confirmed">
+      <div class="section-title">已确认选型</div>
+      <div id="confirmedList"><div class="empty-hint">点击节点 ✓ 确认方向</div></div>
+    </div>
+    <div class="panel-section section-pending">
+      <div class="section-title">待定项</div>
+      <div id="pendingList"><div class="empty-hint">点击节点 ○ 加入待定</div></div>
+    </div>
+    <div class="panel-section section-next">
+      <div class="section-title">下一步计划</div>
+      <div id="nextList"><div class="empty-hint">确认方向后自动生成</div></div>
+    </div>
+  </div>
+
+  <div class="hint" id="hint">输入想法后按「探索」，AI 会展开多个方向供你选择</div>
+</div>
+
+<script>
+const directions1 = [
+  { title: '桌面软件方案', summary: '基于 Electron 的跨平台营销管理工具', keywords: ['Electron', '跨平台', '本地化'] },
+  { title: 'SaaS 云平台', summary: '浏览器端营销自动化平台，月付订阅制', keywords: ['SaaS', '订阅制', '云端'] },
+  { title: '移动端 App', summary: '面向销售团队的移动营销助手', keywords: ['iOS', 'Android', '移动优先'] },
+  { title: '浏览器插件', summary: '嵌入社交媒体的轻量营销辅助工具', keywords: ['Chrome插件', '轻量', '社媒'] },
+  { title: 'AI 营销代理', summary: '全自动 AI 驱动的内容生成和投放系统', keywords: ['AI', '自动化', '内容生成'] },
+  { title: '开源工具集', summary: '面向开发者的营销 API 和 CLI 工具包', keywords: ['开源', 'API', 'CLI'] },
+];
+
+const directions2 = [
+  { title: '核心功能定义', summary: '拖拽式营销流程编排 + 客户画像管理', keywords: ['流程编排', 'CRM'] },
+  { title: '技术栈选型', summary: 'Electron + React + SQLite 本地存储', keywords: ['技术栈', '架构'] },
+  { title: '竞品差异化', summary: '对比 HubSpot/Mailchimp，聚焦中小企业', keywords: ['竞品', '定位'] },
+  { title: '盈利模式', summary: '免费基础版 + Pro 订阅 + 企业定制', keywords: ['定价', '商业化'] },
+  { title: 'MVP 范围', summary: '第一版只做邮件营销 + 基础分析', keywords: ['MVP', '聚焦'] },
+];
+
+let nodeCount = 0;
+const allNodes = [];
+
+function handleSearch() {
+  const val = document.getElementById('searchInput').value.trim();
+  if (!val) return;
+
+  document.getElementById('searchBar').classList.add('shifted');
+  document.getElementById('hint').style.opacity = '0';
+
+  document.querySelectorAll('.node, .edge').forEach(function(el) { el.remove(); });
+  allNodes.length = 0;
+
+  var ideaNode = createIdeaNode(80, 280, val);
+
+  setTimeout(function() {
+    expandDirections(ideaNode, directions1, 340, 60);
+  }, 400);
+}
+
+function createIdeaNode(x, y, text) {
+  var el = document.createElement('div');
+  el.className = 'node idea-node';
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  el.innerHTML = '<div class="bar"></div><div class="text">' + text + '</div>';
+  document.getElementById('canvas').appendChild(el);
+  setTimeout(function() { el.classList.add('visible'); }, 50);
+  return { el: el, x: x, y: y, w: 220 };
+}
+
+function expandDirections(parent, dirs, startX, startY) {
+  var gap = 115;
+  var baseY = startY;
+
+  dirs.forEach(function(d, i) {
+    setTimeout(function() {
+      var y = baseY + i * gap;
+      var node = createDirectionNode(startX, y, d);
+      drawEdge(parent, node);
+      allNodes.push(node);
+    }, i * 80);
+  });
+}
+
+function createDirectionNode(x, y, data) {
+  var id = 'node-' + (++nodeCount);
+  var el = document.createElement('div');
+  el.className = 'node direction-node';
+  el.id = id;
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+
+  var kwHtml = data.keywords.map(function(k) { return '<span class="kw">' + k + '</span>'; }).join('');
+
+  el.innerHTML = '<div class="header">' +
+    '<div class="title">' + data.title + '</div>' +
+    '<div class="summary">' + data.summary + '</div>' +
+    '</div>' +
+    '<div class="keywords">' + kwHtml + '</div>' +
+    '<div class="actions">' +
+    '<button class="expand" onclick="handleExpand(\'' + id + '\')">+ 展开</button>' +
+    '<button class="confirm" onclick="handleConfirm(\'' + id + '\', \'' + data.title + '\', \'' + data.summary + '\')">&#10003; 确认</button>' +
+    '<button class="pending-btn" onclick="handlePending(\'' + id + '\', \'' + data.title + '\', \'' + data.summary + '\')">&#9675; 待定</button>' +
+    '</div>' +
+    '<div class="expand-input" id="input-' + id + '">' +
+    '<input type="text" placeholder="补充你的想法..." onkeydown="if(event.key===\'Enter\')submitOpinion(\'' + id + '\')" />' +
+    '<button onclick="submitOpinion(\'' + id + '\')">&#8594;</button>' +
+    '</div>';
+
+  document.getElementById('canvas').appendChild(el);
+  setTimeout(function() { el.classList.add('visible'); }, 50);
+  return { el: el, x: x, y: y, w: 260, data: data, id: id };
+}
+
+function handleExpand(id) {
+  var inputArea = document.getElementById('input-' + id);
+  inputArea.classList.toggle('show');
+  if (inputArea.classList.contains('show')) {
+    inputArea.querySelector('input').focus();
+  }
+}
+
+function submitOpinion(id) {
+  var inputArea = document.getElementById('input-' + id);
+  var input = inputArea.querySelector('input');
+  if (!input.value.trim()) return;
+
+  inputArea.classList.remove('show');
+  var node = allNodes.find(function(n) { return n.id === id; });
+  if (!node) return;
+
+  setTimeout(function() {
+    expandDirections(node, directions2, node.x + 320, node.y - 200);
+  }, 500);
+}
+
+function handleConfirm(id, title, summary) {
+  var el = document.getElementById(id);
+  el.classList.add('confirmed');
+  var actions = el.querySelector('.actions');
+  if (actions) actions.style.display = 'none';
+  var badge = document.createElement('div');
+  badge.className = 'badge confirmed-badge';
+  badge.textContent = '已确认';
+  el.appendChild(badge);
+
+  var list = document.getElementById('confirmedList');
+  if (list.querySelector('.empty-hint')) list.innerHTML = '';
+  var item = document.createElement('div');
+  item.className = 'panel-item';
+  item.innerHTML = '<div class="item-title">' + title + '</div><div class="item-desc">' + summary + '</div>';
+  list.appendChild(item);
+
+  updateNextSteps();
+}
+
+function handlePending(id, title, summary) {
+  var el = document.getElementById(id);
+  el.classList.add('pending-status');
+  var actions = el.querySelector('.actions');
+  if (actions) actions.style.display = 'none';
+  var badge = document.createElement('div');
+  badge.className = 'badge pending-badge';
+  badge.textContent = '待定';
+  el.appendChild(badge);
+
+  var list = document.getElementById('pendingList');
+  if (list.querySelector('.empty-hint')) list.innerHTML = '';
+  var item = document.createElement('div');
+  item.className = 'panel-item';
+  item.innerHTML = '<div class="item-title">' + title + '</div><div class="item-desc">' + summary + '</div>';
+  list.appendChild(item);
+}
+
+function updateNextSteps() {
+  var confirmed = document.querySelectorAll('#confirmedList .panel-item');
+  var list = document.getElementById('nextList');
+  list.innerHTML = '';
+  confirmed.forEach(function(item) {
+    var title = item.querySelector('.item-title').textContent;
+    var el = document.createElement('div');
+    el.className = 'panel-item';
+    el.innerHTML = '<div class="item-title">深入探索: ' + title + '</div><div class="item-desc">制定详细实施方案和时间线</div>';
+    list.appendChild(el);
+  });
+  if (!confirmed.length) {
+    list.innerHTML = '<div class="empty-hint">确认方向后自动生成</div>';
+  }
+}
+
+function drawEdge(from, to) {
+  var div = document.createElement('div');
+  div.className = 'edge';
+  var fx = from.x + from.w;
+  var fy = from.y + 40;
+  var tx = to.x;
+  var ty = to.y + 40;
+
+  var minX = Math.min(fx, tx) - 10;
+  var minY = Math.min(fy, ty) - 10;
+  var w = Math.abs(tx - fx) + 20;
+  var h = Math.abs(ty - fy) + 20;
+
+  div.style.left = minX + 'px';
+  div.style.top = minY + 'px';
+  div.style.width = w + 'px';
+  div.style.height = h + 'px';
+
+  var sx = fx - minX, sy = fy - minY;
+  var ex = tx - minX, ey = ty - minY;
+  var cmx = (sx + ex) / 2;
+
+  div.innerHTML = '<svg width="' + w + '" height="' + h + '"><path d="M' + sx + ',' + sy + ' C' + cmx + ',' + sy + ' ' + cmx + ',' + ey + ' ' + ex + ',' + ey + '" /></svg>';
+  document.getElementById('canvas').appendChild(div);
+}
+
+document.getElementById('searchInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') handleSearch();
+});
+</script>
+</body>
+</html>

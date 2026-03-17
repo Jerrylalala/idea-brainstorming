@@ -16,11 +16,15 @@ import { useCanvasStore } from '@/canvas/store/canvas-store';
 // 右侧可收起决策抽屉
 export function DecisionDrawer() {
   const { rightDrawerOpen, toggleRightDrawer } = useUIStore();
-  const confirmedDirections = useCanvasStore((s) => s.confirmedDirections());
-  const pendingDirections = useCanvasStore((s) => s.pendingDirections());
+  const confirmedDirections = useCanvasStore((s) => s.confirmedDirections);
+  const pendingDirections = useCanvasStore((s) => s.pendingDirections);
+
+  // 调用函数获取数据
+  const confirmed = confirmedDirections();
+  const pending = pendingDirections();
 
   // 根据已确认项生成下一步计划
-  const nextSteps = confirmedDirections.map((dir) => `深入探索: ${dir.title}`);
+  const nextSteps = confirmed.map((dir) => `深入探索: ${dir.title}`);
 
   return (
     <motion.div animate={{ width: rightDrawerOpen ? 320 : 44 }} className="border-l bg-white">
@@ -44,13 +48,13 @@ export function DecisionDrawer() {
               <div className="flex items-center gap-2 mb-3">
                 <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                 <h3 className="text-sm font-semibold text-slate-900">已确认选型</h3>
-                <Badge variant="secondary" className="ml-auto">{confirmedDirections.length}</Badge>
+                <Badge variant="secondary" className="ml-auto">{confirmed.length}</Badge>
               </div>
               <div className="space-y-2">
-                {confirmedDirections.length === 0 ? (
+                {confirmed.length === 0 ? (
                   <p className="text-xs text-slate-400 text-center py-4">暂无已确认项</p>
                 ) : (
-                  confirmedDirections.map((dir, i) => (
+                  confirmed.map((dir, i) => (
                     <Card key={i} className="rounded-lg shadow-none border-emerald-200 bg-emerald-50">
                       <CardContent className="p-3">
                         <h4 className="text-xs font-semibold text-slate-900 mb-1">{dir.title}</h4>
@@ -74,13 +78,13 @@ export function DecisionDrawer() {
               <div className="flex items-center gap-2 mb-3">
                 <Clock3 className="w-4 h-4 text-amber-500" />
                 <h3 className="text-sm font-semibold text-slate-900">待定项</h3>
-                <Badge variant="secondary" className="ml-auto">{pendingDirections.length}</Badge>
+                <Badge variant="secondary" className="ml-auto">{pending.length}</Badge>
               </div>
               <div className="space-y-2">
-                {pendingDirections.length === 0 ? (
+                {pending.length === 0 ? (
                   <p className="text-xs text-slate-400 text-center py-4">暂无待定项</p>
                 ) : (
-                  pendingDirections.map((dir, i) => (
+                  pending.map((dir, i) => (
                     <Card key={i} className="rounded-lg shadow-none border-amber-200 bg-amber-50">
                       <CardContent className="p-3">
                         <h4 className="text-xs font-semibold text-slate-900 mb-1">{dir.title}</h4>
