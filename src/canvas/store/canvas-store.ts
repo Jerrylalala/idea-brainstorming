@@ -37,6 +37,7 @@ interface CanvasState {
   // 方向树操作
   searchIdea: (idea: string) => Promise<void>
   startExpanding: (nodeId: string) => void
+  cancelExpanding: (nodeId: string) => void
   updateOpinionDraft: (nodeId: string, draft: string) => void
   submitOpinion: (nodeId: string) => Promise<void>
   confirmDirection: (nodeId: string) => void
@@ -366,6 +367,16 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       nodes: s.nodes.map(n =>
         n.id === nodeId && n.type === 'direction'
           ? { ...n, data: { ...n.data, isExpanding: true } }
+          : n
+      ) as CanvasNode[],
+    }))
+  },
+
+  cancelExpanding: (nodeId) => {
+    set((s) => ({
+      nodes: s.nodes.map(n =>
+        n.id === nodeId && n.type === 'direction'
+          ? { ...n, data: { ...n.data, isExpanding: false, opinionDraft: '' } }
           : n
       ) as CanvasNode[],
     }))

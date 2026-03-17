@@ -1,19 +1,38 @@
-import { memo } from 'react'
+import { memo, useRef, useEffect } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Loader2, ChevronDown, Check, Circle, ArrowRight } from 'lucide-react'
+import { Loader2, ChevronDown, Check, Circle, ArrowRight, X } from 'lucide-react'
 import { useCanvasStore } from '../store/canvas-store'
 import type { DirectionCanvasNode } from '../types'
 
 export const DirectionNode = memo(({ id, data }: NodeProps<DirectionCanvasNode>) => {
-  const { status, title, keywords, isExpanding, opinionDraft } = data
+  const { status, title, summary, isExpanding, opinionDraft } = data
   const startExpanding = useCanvasStore(s => s.startExpanding)
+  const cancelExpanding = useCanvasStore(s => s.cancelExpanding)
   const updateOpinionDraft = useCanvasStore(s => s.updateOpinionDraft)
   const submitOpinion = useCanvasStore(s => s.submitOpinion)
   const confirmDirection = useCanvasStore(s => s.confirmDirection)
   const pendingDirection = useCanvasStore(s => s.pendingDirection)
+
+  const nodeRef = useRef<HTMLDivElement>(null)
+
+  // 点击节点外部自动收缩（仅在输入框为空时）
+  useEffect(() => {
+    if (!isExpanding) return
+
+    const handleMouseDown = (e: MouseEvent) => {
+      if (nodeRef.current && !nodeRef.current.contains(e.target as Node)) {
+        // 有内容时保护用户输入，不收缩
+        if (!opinionDraft.trim()) {
+          cancelExpanding(id)
+        }
+      }
+    }
+
+    document.addEventListener('mousedown', handleMouseDown)
+    return () => document.removeEventListener('mousedown', handleMouseDown)
+  }, [isExpanding, opinionDraft, id, cancelExpanding])
 
   // 状态样式：只用颜色，不用文字
   const borderColor =
@@ -33,7 +52,7 @@ export const DirectionNode = memo(({ id, data }: NodeProps<DirectionCanvasNode>)
     'bg-transparent'
 
   return (
-    <div className={`w-[420px] rounded-lg border ${borderColor} ${bgColor} shadow-sm flex overflow-hidden`}>
+    <div ref={nodeRef} className={`w-fit min-w-[200px] max-w-[500px] rounded-lg border ${borderColor} ${bgColor} shadow-sm flex overflow-hidden`}>
       {/* 左侧色条 - 状态指示 */}
       <div className={`w-1 flex-shrink-0 ${leftAccent}`} />
 
@@ -47,17 +66,13 @@ export const DirectionNode = memo(({ id, data }: NodeProps<DirectionCanvasNode>)
             <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500 flex-shrink-0" />
           )}
 
-          {/* 标题 */}
+          {/* 标题 + 摘要描述 */}
           <span className="font-medium text-sm text-slate-900 flex-shrink-0">{title}</span>
-
-          {/* 关键词 */}
-          <div className="flex gap-1 flex-1 min-w-0 overflow-hidden">
-            {keywords.map((kw, i) => (
-              <Badge key={i} variant="secondary" className="text-[10px] px-1.5 py-0 h-4 flex-shrink-0">
-                {kw}
-              </Badge>
-            ))}
-          </div>
+          {summary && (
+            <span className="text-xs text-slate-400 flex-shrink min-w-0 truncate">
+              {summary.slice(0, 30)}
+            </span>
+          )}
 
           {/* 操作按钮 - ghost 无边框 */}
           {status === 'idle' && !isExpanding && (
@@ -95,7 +110,7 @@ export const DirectionNode = memo(({ id, data }: NodeProps<DirectionCanvasNode>)
 
         {/* 展开输入框 - 第二行 */}
         {isExpanding && (
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center gap-1 mt-2">
             <Input
               placeholder="补充你的想法..."
               value={opinionDraft}
@@ -103,6 +118,9 @@ export const DirectionNode = memo(({ id, data }: NodeProps<DirectionCanvasNode>)
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && opinionDraft.trim()) {
                   submitOpinion(id)
+                }
+                if (e.key === 'Escape') {
+                  cancelExpanding(id)
                 }
               }}
               className="nodrag nokey h-7 text-xs flex-1"
@@ -116,6 +134,15 @@ export const DirectionNode = memo(({ id, data }: NodeProps<DirectionCanvasNode>)
               disabled={!opinionDraft.trim()}
             >
               <ArrowRight className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0 hover:bg-slate-100"
+              onClick={() => cancelExpanding(id)}
+              title="收起"
+            >
+              <X className="w-3.5 h-3.5 text-slate-400" />
             </Button>
           </div>
         )}

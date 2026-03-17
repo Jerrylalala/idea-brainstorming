@@ -7,7 +7,7 @@ export const IdeaNode = memo(({ data }: NodeProps<IdeaCanvasNode>) => {
   const { idea, status } = data
 
   return (
-    <div className="w-[420px] rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <div className="w-fit min-w-[200px] max-w-[500px] rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
       <div className="flex items-center gap-3 px-4 py-3">
         {status === 'generating' ? (
           <Loader2 className="w-4 h-4 animate-spin text-amber-500 flex-shrink-0" />

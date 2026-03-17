@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 const RELATION_STYLES = {
   quote: { stroke: '#8b5cf6', label: '引用', dash: '' },
   branch: { stroke: '#06b6d4', label: '分支', dash: '5,5' },
-  derived: { stroke: '#10b981', label: '派生', dash: '8,4' },
+  derived: { stroke: '#10b981', label: '', dash: '' },
 }
 
 export function ReferenceEdge({
