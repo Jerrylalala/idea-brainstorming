@@ -1,5 +1,5 @@
 import type {
-  TextCanvasNode, ChatCanvasNode, CanvasEdge,
+  TextCanvasNode, ChatCanvasNode, DirectionCanvasNode, IdeaCanvasNode, CanvasEdge,
   SourceRef, EdgeRelation,
 } from '../types'
 
@@ -54,5 +54,45 @@ export function createEdge(
     target,
     type: 'reference',
     data: { relation, sourceRef },
+  }
+}
+
+export function createDirectionNode(
+  position: { x: number; y: number },
+  title: string,
+  summary: string,
+  keywords: string[],
+  depth: number,
+  parentNodeId: string | null
+): DirectionCanvasNode {
+  return {
+    id: uid(),
+    type: 'direction',
+    position,
+    data: {
+      title,
+      summary,
+      keywords,
+      status: 'idle',
+      depth,
+      parentNodeId,
+      opinionDraft: '',
+      isExpanding: false,
+    },
+  }
+}
+
+export function createIdeaNode(
+  position: { x: number; y: number },
+  idea: string
+): IdeaCanvasNode {
+  return {
+    id: uid(),
+    type: 'idea',
+    position,
+    data: {
+      idea,
+      status: 'idle',
+    },
   }
 }
