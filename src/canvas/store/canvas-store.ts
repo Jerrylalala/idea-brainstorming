@@ -176,31 +176,45 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
         sourceRefs: currentNode.data.sourceRefs,
       })
 
+      // 80ms 批量缓冲，减少渲染次数
+      let buffer = ''
+      let flushTimer: ReturnType<typeof setTimeout> | null = null
+
+      const flush = () => {
+        fullText += buffer
+        buffer = ''
+        flushTimer = null
+
+        const assistantMsg: ChatMessage = {
+          id: assistantMsgId,
+          role: 'assistant',
+          text: fullText,
+          createdAt: Date.now(),
+        }
+
+        set((s) => ({
+          nodes: s.nodes.map((n) => {
+            if (n.id !== nodeId || n.type !== 'chat') return n
+            const chatData = n.data as ChatCanvasNode['data']
+            const msgs = chatData.messages.filter((m) => m.id !== assistantMsgId)
+            return {
+              ...n,
+              data: { ...chatData, messages: [...msgs, assistantMsg] },
+            }
+          }) as CanvasNode[],
+        }))
+      }
+
       for await (const chunk of stream) {
         if (chunk.type === 'delta' && chunk.text) {
-          fullText += chunk.text
-
-          const assistantMsg: ChatMessage = {
-            id: assistantMsgId,
-            role: 'assistant',
-            text: fullText,
-            createdAt: Date.now(),
+          buffer += chunk.text
+          if (!flushTimer) {
+            flushTimer = setTimeout(flush, 80)
           }
-
-          set((s) => ({
-            nodes: s.nodes.map((n) => {
-              if (n.id !== nodeId || n.type !== 'chat') return n
-              const chatData = n.data as ChatCanvasNode['data']
-              const msgs = chatData.messages.filter((m) => m.id !== assistantMsgId)
-              return {
-                ...n,
-                data: { ...chatData, messages: [...msgs, assistantMsg] },
-              }
-            }) as CanvasNode[],
-          }))
         }
 
         if (chunk.type === 'error') {
+          if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
           set((s) => ({
             nodes: s.nodes.map((n) =>
               n.id === nodeId && n.type === 'chat'
@@ -211,6 +225,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
           return
         }
       }
+
+      // 最后一次 flush
+      if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
+      if (buffer) flush()
 
       // 流完成
       set((s) => ({
