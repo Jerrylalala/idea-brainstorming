@@ -17,6 +17,7 @@ import { CanvasToolbar } from './canvas-toolbar'
 import { CanvasZoomIndicator } from './canvas-zoom-indicator'
 import { SearchBar } from './search-bar'
 import { useCreateChatFromEdge } from './hooks/use-create-chat-from-edge'
+import { useAutoLayout } from './hooks/use-auto-layout'
 
 const nodeTypes = {
   text: TextNode,
@@ -52,6 +53,7 @@ function DeleteToast() {
 function BrainstormCanvasInner() {
   const { nodes, edges, onNodesChange, onEdgesChange } = useCanvasStore()
   const { onConnectStart, onConnectEnd } = useCreateChatFromEdge()
+  useAutoLayout()  // 在 ReactFlowProvider 内部执行布局，使用实测节点尺寸
 
   return (
     <div className="relative h-full w-full">
@@ -65,7 +67,7 @@ function BrainstormCanvasInner() {
         onConnectEnd={onConnectEnd}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        connectionLineType={ConnectionLineType.SmoothStep}
+        connectionLineType={ConnectionLineType.Bezier}
         fitView
         fitViewOptions={{ padding: 0.3 }}
         defaultEdgeOptions={{ type: 'reference' }}

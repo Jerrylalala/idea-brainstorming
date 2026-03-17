@@ -59,7 +59,7 @@ export const DirectionNode = memo(({ id, data }: NodeProps<DirectionCanvasNode>)
     'bg-transparent'
 
   return (
-    <div ref={nodeRef} className={`w-fit min-w-[200px] max-w-[500px] rounded-lg border ${borderColor} ${bgColor} shadow-sm flex overflow-hidden`}>
+    <div ref={nodeRef} className={`w-[420px] rounded-lg border ${borderColor} ${bgColor} shadow-sm flex overflow-hidden`}>
       {/* 左侧色条 - 状态指示 */}
       <div className={`w-1 flex-shrink-0 ${leftAccent}`} />
 

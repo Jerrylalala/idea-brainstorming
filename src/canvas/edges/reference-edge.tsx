@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import {
-  BaseEdge, getSmoothStepPath, EdgeLabelRenderer,
+  BaseEdge, getBezierPath, EdgeLabelRenderer,
   type EdgeProps,
   useReactFlow,
 } from '@xyflow/react'
@@ -17,10 +17,9 @@ export function ReferenceEdge({
   id, sourceX, sourceY, targetX, targetY,
   sourcePosition, targetPosition, data, selected,
 }: EdgeProps) {
-  const [edgePath, labelX, labelY] = getSmoothStepPath({
+  const [edgePath, labelX, labelY] = getBezierPath({
     sourceX, sourceY, targetX, targetY,
     sourcePosition, targetPosition,
-    borderRadius: 8,
   })
 
   const { fitView } = useReactFlow()

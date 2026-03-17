@@ -19,8 +19,13 @@ import {
   DndContext,
   closestCenter,
   DragOverlay,
+  useDroppable,
   type DragStartEvent,
   type DragEndEvent,
+  type DragOverEvent,
+  pointerWithin,
+  rectIntersection,
+  type CollisionDetection,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -29,6 +34,20 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+
+// 区域 droppable 容器 ID
+const DROPPABLE_CONFIRMED = 'droppable-confirmed';
+const DROPPABLE_PENDING = 'droppable-pending';
+
+// 可放置区域容器
+function DroppableZone({ id, children, isEmpty }: { id: string; children: React.ReactNode; isEmpty: boolean }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div ref={setNodeRef} className={`min-h-[8px] rounded transition-colors ${isOver && isEmpty ? 'bg-slate-100 border border-dashed border-slate-300' : ''}`}>
+      {children}
+    </div>
+  );
+}
 
 // 可拖拽的面板项（带展开细节 + 删除）
 function DraggableItem({ id, title, summary, borderColor, onRemove }: {
@@ -235,8 +254,8 @@ export function DecisionDrawer() {
 
     const isActiveInConfirmed = confirmedOrder.includes(activeId);
     const isActiveInPending = pendingOrder.includes(activeId);
-    const isOverInConfirmed = confirmedOrder.includes(overId);
-    const isOverInPending = pendingOrder.includes(overId);
+    const isOverInConfirmed = confirmedOrder.includes(overId) || overId === DROPPABLE_CONFIRMED;
+    const isOverInPending = pendingOrder.includes(overId) || overId === DROPPABLE_PENDING;
 
     // 跨区域拖拽
     if (isActiveInConfirmed && isOverInPending) {
@@ -244,6 +263,7 @@ export function DecisionDrawer() {
       moveToCategory(activeId, 'pending');
       setConfirmedOrder(items => items.filter(id => id !== activeId));
       setPendingOrder(items => {
+        if (overId === DROPPABLE_PENDING) return [...items, activeId];
         const overIndex = items.indexOf(overId);
         return [...items.slice(0, overIndex + 1), activeId, ...items.slice(overIndex + 1)];
       });
@@ -252,17 +272,18 @@ export function DecisionDrawer() {
       moveToCategory(activeId, 'confirmed');
       setPendingOrder(items => items.filter(id => id !== activeId));
       setConfirmedOrder(items => {
+        if (overId === DROPPABLE_CONFIRMED) return [...items, activeId];
         const overIndex = items.indexOf(overId);
         return [...items.slice(0, overIndex + 1), activeId, ...items.slice(overIndex + 1)];
       });
-    } else if (isActiveInConfirmed && isOverInConfirmed) {
+    } else if (isActiveInConfirmed && isOverInConfirmed && overId !== DROPPABLE_CONFIRMED) {
       // 在 confirmed 区内排序
       setConfirmedOrder((items) => {
         const oldIndex = items.indexOf(activeId);
         const newIndex = items.indexOf(overId);
         return arrayMove(items, oldIndex, newIndex);
       });
-    } else if (isActiveInPending && isOverInPending) {
+    } else if (isActiveInPending && isOverInPending && overId !== DROPPABLE_PENDING) {
       // 在 pending 区内排序
       setPendingOrder((items) => {
         const oldIndex = items.indexOf(activeId);
@@ -289,7 +310,7 @@ export function DecisionDrawer() {
       {rightDrawerOpen && (
         <ScrollArea className="h-[calc(100vh-92px)]">
           <DndContext
-            collisionDetection={closestCenter}
+            collisionDetection={rectIntersection}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
@@ -304,9 +325,9 @@ export function DecisionDrawer() {
                   <span className="text-xs text-slate-400">{confirmedItems.length}</span>
                 </button>
                 {expandedSections.confirmed && (
-                  <>
+                  <DroppableZone id={DROPPABLE_CONFIRMED} isEmpty={confirmedItems.length === 0}>
                     {confirmedItems.length === 0 ? (
-                      <p className="ml-6 py-1.5 pl-3 text-xs text-slate-400">暂无已确认项</p>
+                      <p className="ml-6 py-1.5 pl-3 text-xs text-slate-400">暂无已确认项，可从待定项拖入</p>
                     ) : (
                       confirmedItems.map((item) => (
                         <DraggableItem
@@ -319,7 +340,7 @@ export function DecisionDrawer() {
                         />
                       ))
                     )}
-                  </>
+                  </DroppableZone>
                 )}
               </div>
 
@@ -332,9 +353,9 @@ export function DecisionDrawer() {
                   <span className="text-xs text-slate-400">{pendingItems.length}</span>
                 </button>
                 {expandedSections.pending && (
-                  <>
+                  <DroppableZone id={DROPPABLE_PENDING} isEmpty={pendingItems.length === 0}>
                     {pendingItems.length === 0 ? (
-                      <p className="ml-6 py-1.5 pl-3 text-xs text-slate-400">暂无待定项</p>
+                      <p className="ml-6 py-1.5 pl-3 text-xs text-slate-400">暂无待定项，可从已确认拖入</p>
                     ) : (
                       pendingItems.map((item) => (
                         <DraggableItem
@@ -347,7 +368,7 @@ export function DecisionDrawer() {
                         />
                       ))
                     )}
-                  </>
+                  </DroppableZone>
                 )}
               </div>
 

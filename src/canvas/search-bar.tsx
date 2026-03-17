@@ -30,16 +30,19 @@ export function SearchBar() {
         <motion.div
           className="fixed left-1/2 z-50 flex flex-col items-center pointer-events-none"
           style={{ top: '18%', transform: 'translateX(-50%)' }}
-          layoutId="idea-input"
-          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
+          exit={{
+            opacity: 0,
+            scale: 0.9,
+            y: 20,
+            transition: { duration: 0.4, ease: [0.4, 0, 0.2, 1] }
+          }}
         >
           {/* 标题文字 */}
           <motion.h1
             className="text-2xl font-semibold text-slate-800 mb-6 pointer-events-auto"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10, transition: { duration: 0.15 } }}
+            exit={{ opacity: 0, y: -10, transition: { duration: 0.2 } }}
             transition={{ duration: 0.5 }}
           >
             输入你的想法，开始探索
