@@ -9,6 +9,8 @@ import '@xyflow/react/dist/style.css'
 import { useCanvasStore } from './store/canvas-store'
 import { TextNode } from './nodes/text-node'
 import { ChatNode } from './nodes/chat-node'
+import { DirectionNode } from './nodes/direction-node'
+import { IdeaNode } from './nodes/idea-node'
 import { ReferenceEdge } from './edges/reference-edge'
 import { CanvasToolbar } from './canvas-toolbar'
 import { CanvasZoomIndicator } from './canvas-zoom-indicator'
@@ -17,6 +19,8 @@ import { useCreateChatFromEdge } from './hooks/use-create-chat-from-edge'
 const nodeTypes = {
   text: TextNode,
   chat: ChatNode,
+  direction: DirectionNode,
+  idea: IdeaNode,
 }
 
 const edgeTypes = {
