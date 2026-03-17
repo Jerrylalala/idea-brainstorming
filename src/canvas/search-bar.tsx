@@ -24,18 +24,17 @@ export function SearchBar() {
     })
   }
 
+  if (isSubmitted) return null
+
   return (
-    <motion.div
-      className="absolute top-6 z-10 flex items-center gap-2 rounded-full border-2 border-slate-200 bg-white px-4 py-2 shadow-lg"
-      style={{ left: '50%' }}
-      initial={{ x: '-50%', width: 480, opacity: 1 }}
-      animate={{
-        x: '-50%',
-        width: isSubmitted ? 0 : 480,
-        opacity: isSubmitted ? 0 : 1,
-      }}
-      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+      <motion.div
+        className="flex items-center gap-2 rounded-full border-2 border-slate-200 bg-white px-4 py-2 shadow-lg pointer-events-auto"
+        initial={{ width: 480, opacity: 1, scale: 1 }}
+        animate={{ width: 480, opacity: 1, scale: 1 }}
+        exit={{ width: 0, opacity: 0, scale: 0.9 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+      >
       <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
       <Input
         placeholder="输入你的想法，开始探索..."
@@ -58,6 +57,7 @@ export function SearchBar() {
           探索
         </Button>
       )}
-    </motion.div>
+      </motion.div>
+    </div>
   )
 }
