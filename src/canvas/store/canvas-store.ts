@@ -51,9 +51,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
   let undoTimer: ReturnType<typeof setTimeout> | null = null
 
   return {
-  nodes: [
-    createTextNode({ x: 100, y: 200 }, '在这里写下你的想法...\n\n双击编辑，从右侧圆点拖出连线创建对话。'),
-  ],
+  nodes: [],  // 初始为空，等待用户搜索
   edges: [],
   lastDeleted: null,
 
