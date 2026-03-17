@@ -1,5 +1,5 @@
-import { useCallback } from 'react'
-import { Handle, Position, type NodeProps } from '@xyflow/react'
+import { useCallback, useRef, useState, useEffect } from 'react'
+import { Handle, Position, type NodeProps, useReactFlow } from '@xyflow/react'
 import type { ChatCanvasNode } from '../types'
 import { useCanvasStore } from '../store/canvas-store'
 import { cn } from '@/lib/utils'
@@ -8,6 +8,10 @@ export function ChatNode({ id, data, selected }: NodeProps<ChatCanvasNode>) {
   const updateDraft = useCanvasStore((s) => s.updateDraft)
   const sendMessage = useCanvasStore((s) => s.sendMessage)
   const expandNote = useCanvasStore((s) => s.expandNote)
+  const addChatFromQuote = useCanvasStore((s) => s.addChatFromQuote)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [selection, setSelection] = useState<{ text: string; rect: DOMRect } | null>(null)
+  const reactFlow = useReactFlow()
 
   const handleSend = useCallback(() => {
     if (data.draft.trim() && data.status !== 'streaming') {
@@ -32,8 +36,41 @@ export function ChatNode({ id, data, selected }: NodeProps<ChatCanvasNode>) {
     error: 'bg-rose-400',
   }[data.status]
 
+  // 监听消息区文字选择
+  const handleMessageMouseUp = useCallback(() => {
+    const sel = window.getSelection()
+    if (sel && sel.toString().trim()) {
+      const range = sel.getRangeAt(0)
+      const rect = range.getBoundingClientRect()
+      setSelection({ text: sel.toString(), rect })
+    } else {
+      setSelection(null)
+    }
+  }, [])
+
+  // 引用提问：选中文字 → 创建分支 Chat
+  const handleQuoteChat = useCallback(() => {
+    if (!selection || !containerRef.current) return
+    const containerRect = containerRef.current.getBoundingClientRect()
+    const flowPosition = reactFlow.screenToFlowPosition({
+      x: containerRect.right + 80,
+      y: containerRect.top,
+    })
+    addChatFromQuote(id, selection.text, flowPosition)
+    setSelection(null)
+    window.getSelection()?.removeAllRanges()
+  }, [id, selection, addChatFromQuote, reactFlow])
+
+  // 点击画布其他地方时清除选择
+  useEffect(() => {
+    const handleClickOutside = () => setSelection(null)
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [])
+
   return (
     <div
+      ref={containerRef}
       className={cn(
         'relative min-w-[300px] max-w-[480px] rounded-xl border bg-white shadow-sm',
         'transition-shadow duration-150',
@@ -65,7 +102,7 @@ export function ChatNode({ id, data, selected }: NodeProps<ChatCanvasNode>) {
       )}
 
       {/* 消息列表 */}
-      <div className="nowheel max-h-[300px] overflow-y-auto px-4 py-2 space-y-3">
+      <div className="nowheel max-h-[300px] overflow-y-auto px-4 py-2 space-y-3" onMouseUp={handleMessageMouseUp}>
         {data.messages.map((msg) => (
           <div key={msg.id}>
             <div
@@ -77,7 +114,7 @@ export function ChatNode({ id, data, selected }: NodeProps<ChatCanvasNode>) {
               <span className="text-xs font-medium text-slate-400 mr-1">
                 {msg.role === 'user' ? '你' : 'AI'}:
               </span>
-              <span className="whitespace-pre-wrap">{msg.text}</span>
+              <span className="whitespace-pre-wrap select-text nopan">{msg.text}</span>
             </div>
             {/* 展开笔记按钮（仅 assistant 消息） */}
             {msg.role === 'assistant' && data.status === 'idle' && (
@@ -120,6 +157,22 @@ export function ChatNode({ id, data, selected }: NodeProps<ChatCanvasNode>) {
           </button>
         </div>
       </div>
+
+      {/* 引用提问浮动按钮 */}
+      {selection && (
+        <div
+          className="fixed z-50 flex items-center gap-1 rounded-lg border border-sky-200 bg-white px-2 py-1 shadow-lg"
+          style={{
+            left: selection.rect.left + selection.rect.width / 2 - 40,
+            top: selection.rect.top - 36,
+          }}
+          onClick={(e) => { e.stopPropagation(); handleQuoteChat() }}
+        >
+          <span className="text-xs text-sky-600 cursor-pointer hover:text-sky-800">
+            引用提问
+          </span>
+        </div>
+      )}
 
       {/* Handles */}
       <Handle
