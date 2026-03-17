@@ -1,5 +1,5 @@
-const HORIZONTAL_GAP = 360  // 父子节点水平间距
-const VERTICAL_GAP = 120    // 兄弟节点垂直间距
+const HORIZONTAL_GAP = 200  // 父子节点水平间距（节点更宽，间距可缩小）
+const VERTICAL_GAP = 60     // 兄弟节点垂直间距（单行节点高度约 50px）
 
 export function computeChildPositions(
   parentPosition: { x: number; y: number },

@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   CheckCircle2,
@@ -12,16 +13,22 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useUIStore } from '@/store/ui-store';
 import { useCanvasStore } from '@/canvas/store/canvas-store';
+import type { DirectionCanvasNode } from '@/canvas/types';
 
 // 右侧可收起决策抽屉
 export function DecisionDrawer() {
   const { rightDrawerOpen, toggleRightDrawer } = useUIStore();
-  const confirmedDirections = useCanvasStore((s) => s.confirmedDirections);
-  const pendingDirections = useCanvasStore((s) => s.pendingDirections);
+  const nodes = useCanvasStore((s) => s.nodes);
 
-  // 调用函数获取数据
-  const confirmed = confirmedDirections();
-  const pending = pendingDirections();
+  // 直接从 nodes 派生，React 可以追踪 nodes 变化
+  const confirmed = useMemo(
+    () => nodes.filter(n => n.type === 'direction' && n.data.status === 'confirmed').map(n => (n as DirectionCanvasNode).data),
+    [nodes]
+  );
+  const pending = useMemo(
+    () => nodes.filter(n => n.type === 'direction' && n.data.status === 'pending').map(n => (n as DirectionCanvasNode).data),
+    [nodes]
+  );
 
   // 根据已确认项生成下一步计划
   const nextSteps = confirmed.map((dir) => `深入探索: ${dir.title}`);

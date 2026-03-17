@@ -331,7 +331,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       const directions = await aiClient.generateDirections({ idea })
 
       // 5. 计算子节点位置
-      const positions = computeChildPositions(ideaNode.position, 240, directions.length)
+      const positions = computeChildPositions(ideaNode.position, 420, directions.length)
 
       // 6. 创建 DirectionNode 数组 + 连接边
       const directionNodes = directions.map((dir, i) =>
@@ -426,7 +426,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       })
 
       // 4. 计算子节点位置（父节点右侧 320px，垂直均匀分布）
-      const positions = computeChildPositions(node.position, 260, directions.length)
+      const positions = computeChildPositions(node.position, 420, directions.length)
 
       // 5. 创建子节点 + 边
       const childNodes = directions.map((dir, i) =>

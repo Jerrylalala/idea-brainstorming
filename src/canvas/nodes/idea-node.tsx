@@ -1,25 +1,20 @@
 import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Lightbulb } from 'lucide-react'
 import type { IdeaCanvasNode } from '../types'
 
 export const IdeaNode = memo(({ data }: NodeProps<IdeaCanvasNode>) => {
   const { idea, status } = data
 
   return (
-    <div className="w-[240px] rounded-lg border-2 border-slate-200 bg-white shadow-sm overflow-hidden">
-      {/* 顶部装饰条 */}
-      <div className={`h-1 bg-gradient-to-r from-amber-400 to-orange-500 ${
-        status === 'generating' ? 'animate-pulse' : ''
-      }`} />
-
-      <div className="p-4">
-        <div className="flex items-start gap-2">
-          {status === 'generating' && (
-            <Loader2 className="w-4 h-4 mt-0.5 animate-spin text-amber-500 flex-shrink-0" />
-          )}
-          <p className="text-sm text-slate-700 leading-relaxed">{idea}</p>
-        </div>
+    <div className="w-[420px] rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="flex items-center gap-3 px-4 py-3">
+        {status === 'generating' ? (
+          <Loader2 className="w-4 h-4 animate-spin text-amber-500 flex-shrink-0" />
+        ) : (
+          <Lightbulb className="w-4 h-4 text-amber-500 flex-shrink-0" />
+        )}
+        <p className="text-sm font-medium text-slate-800">{idea}</p>
       </div>
 
       <Handle type="source" position={Position.Right} className="!bg-amber-500" />
