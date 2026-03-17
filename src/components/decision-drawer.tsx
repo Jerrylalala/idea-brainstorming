@@ -1,5 +1,5 @@
-import { useMemo, useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useMemo, useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle2,
   Clock3,
@@ -49,7 +49,7 @@ function DroppableZone({ id, children, isEmpty }: { id: string; children: React.
   );
 }
 
-// 可拖拽的面板项（带展开细节 + 删除）
+// 可拖拽的面板项（悬浮展开细节 + 拖拽排序）
 function DraggableItem({ id, title, summary, borderColor, onRemove }: {
   id: string
   title: string
@@ -58,33 +58,41 @@ function DraggableItem({ id, title, summary, borderColor, onRemove }: {
   onRemove: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
-  const [expanded, setExpanded] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
   };
 
+  // 延迟收起，避免鼠标微小移动导致闪烁
+  const handleEnter = () => {
+    if (leaveTimer.current) { clearTimeout(leaveTimer.current); leaveTimer.current = null; }
+    setHovered(true);
+  };
+  const handleLeave = () => {
+    leaveTimer.current = setTimeout(() => setHovered(false), 200);
+  };
+
+  useEffect(() => () => { if (leaveTimer.current) clearTimeout(leaveTimer.current); }, []);
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       className={`group ml-6 my-1 rounded-md border-l-2 ${borderColor} ${isDragging ? 'opacity-50' : ''}`}
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
     >
       <div
         className="flex items-center py-1.5 pl-2 pr-1 cursor-grab active:cursor-grabbing hover:bg-slate-50 transition-colors"
         {...attributes}
         {...listeners}
       >
-        {/* 展开/折叠箭头 */}
+        {/* 展开指示箭头 */}
         {summary ? (
-          <button
-            onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
-            className="mr-1 p-0.5"
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <ChevronRight className={`w-3 h-3 text-slate-400 transition-transform ${expanded ? 'rotate-90' : ''}`} />
-          </button>
+          <ChevronRight className={`w-3 h-3 mr-1 text-slate-400 transition-transform duration-200 ${hovered ? 'rotate-90' : ''}`} />
         ) : (
           <div className="w-4 mr-1" />
         )}
@@ -101,12 +109,22 @@ function DraggableItem({ id, title, summary, borderColor, onRemove }: {
         </button>
       </div>
 
-      {/* 展开细节 */}
-      {expanded && summary && (
-        <div className="pl-8 pr-2 pb-2 text-[11px] text-slate-500 leading-relaxed">
-          {summary}
-        </div>
-      )}
+      {/* 悬浮展开细节 - 带动画 */}
+      <AnimatePresence>
+        {hovered && summary && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            className="overflow-hidden"
+          >
+            <div className="pl-8 pr-2 pb-2 text-[11px] text-slate-500 leading-relaxed">
+              {summary}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
