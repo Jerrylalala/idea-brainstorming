@@ -314,9 +314,8 @@ export function DecisionDrawer() {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
-            <SortableContext items={[...confirmedOrder, ...pendingOrder]} strategy={verticalListSortingStrategy}>
             <div className="p-3 space-y-1">
-              {/* 已确认选型 */}
+              {/* 已确认选型 - 独立 SortableContext 避免跨区域自动排序 */}
               <div>
                 <button onClick={() => toggleSection('confirmed')} className="w-full flex items-center gap-2 py-2 hover:bg-slate-50 rounded-md px-1 transition-colors">
                   <ChevronRight className={`w-3.5 h-3.5 text-slate-400 transition-transform ${expandedSections.confirmed ? 'rotate-90' : ''}`} />
@@ -325,26 +324,28 @@ export function DecisionDrawer() {
                   <span className="text-xs text-slate-400">{confirmedItems.length}</span>
                 </button>
                 {expandedSections.confirmed && (
-                  <DroppableZone id={DROPPABLE_CONFIRMED} isEmpty={confirmedItems.length === 0}>
-                    {confirmedItems.length === 0 ? (
-                      <p className="ml-6 py-1.5 pl-3 text-xs text-slate-400">暂无已确认项，可从待定项拖入</p>
-                    ) : (
-                      confirmedItems.map((item) => (
-                        <DraggableItem
-                          key={item.id}
-                          id={item.id}
-                          title={item.title}
-                          summary={item.summary}
-                          borderColor="border-emerald-300"
-                          onRemove={() => removeFromPanel(item.id)}
-                        />
-                      ))
-                    )}
-                  </DroppableZone>
+                  <SortableContext items={confirmedOrder} strategy={verticalListSortingStrategy}>
+                    <DroppableZone id={DROPPABLE_CONFIRMED} isEmpty={confirmedItems.length === 0}>
+                      {confirmedItems.length === 0 ? (
+                        <p className="ml-6 py-1.5 pl-3 text-xs text-slate-400">暂无已确认项，可从待定项拖入</p>
+                      ) : (
+                        confirmedItems.map((item) => (
+                          <DraggableItem
+                            key={item.id}
+                            id={item.id}
+                            title={item.title}
+                            summary={item.summary}
+                            borderColor="border-emerald-300"
+                            onRemove={() => removeFromPanel(item.id)}
+                          />
+                        ))
+                      )}
+                    </DroppableZone>
+                  </SortableContext>
                 )}
               </div>
 
-              {/* 待定项 */}
+              {/* 待定项 - 独立 SortableContext */}
               <div>
                 <button onClick={() => toggleSection('pending')} className="w-full flex items-center gap-2 py-2 hover:bg-slate-50 rounded-md px-1 transition-colors">
                   <ChevronRight className={`w-3.5 h-3.5 text-slate-400 transition-transform ${expandedSections.pending ? 'rotate-90' : ''}`} />
@@ -353,22 +354,24 @@ export function DecisionDrawer() {
                   <span className="text-xs text-slate-400">{pendingItems.length}</span>
                 </button>
                 {expandedSections.pending && (
-                  <DroppableZone id={DROPPABLE_PENDING} isEmpty={pendingItems.length === 0}>
-                    {pendingItems.length === 0 ? (
-                      <p className="ml-6 py-1.5 pl-3 text-xs text-slate-400">暂无待定项，可从已确认拖入</p>
-                    ) : (
-                      pendingItems.map((item) => (
-                        <DraggableItem
-                          key={item.id}
-                          id={item.id}
-                          title={item.title}
-                          summary={item.summary}
-                          borderColor="border-amber-300"
-                          onRemove={() => removeFromPanel(item.id)}
-                        />
-                      ))
-                    )}
-                  </DroppableZone>
+                  <SortableContext items={pendingOrder} strategy={verticalListSortingStrategy}>
+                    <DroppableZone id={DROPPABLE_PENDING} isEmpty={pendingItems.length === 0}>
+                      {pendingItems.length === 0 ? (
+                        <p className="ml-6 py-1.5 pl-3 text-xs text-slate-400">暂无待定项，可从已确认拖入</p>
+                      ) : (
+                        pendingItems.map((item) => (
+                          <DraggableItem
+                            key={item.id}
+                            id={item.id}
+                            title={item.title}
+                            summary={item.summary}
+                            borderColor="border-amber-300"
+                            onRemove={() => removeFromPanel(item.id)}
+                          />
+                        ))
+                      )}
+                    </DroppableZone>
+                  </SortableContext>
                 )}
               </div>
 
@@ -395,7 +398,6 @@ export function DecisionDrawer() {
                 )}
               </div>
             </div>
-            </SortableContext>
 
             <DragOverlay>
               {activeItem ? (

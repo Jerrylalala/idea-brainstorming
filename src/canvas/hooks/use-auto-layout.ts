@@ -11,7 +11,7 @@ export function setPendingFocusNodes(parentId: string, childIds: string[]) {
 
 const HORIZONTAL_GAP = 150  // 父→子水平间距
 const VERTICAL_GAP = 16     // 兄弟节点垂直间距
-const DEFAULT_WIDTH = 420
+const DEFAULT_WIDTH = 300
 const DEFAULT_HEIGHT = 80
 
 /**
