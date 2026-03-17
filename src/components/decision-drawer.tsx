@@ -4,10 +4,12 @@ import {
   CheckCircle2,
   Clock3,
   ChevronRight,
+  ChevronDown,
   PanelRightClose,
   PanelRightOpen,
   Rocket,
   X,
+  GripVertical,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -20,19 +22,20 @@ import {
   DragOverlay,
   type DragStartEvent,
   type DragEndEvent,
-  type DragOverEvent,
   useDroppable,
   useDraggable,
 } from '@dnd-kit/core';
 
-// 可拖拽的面板项
-function DraggableItem({ id, title, borderColor, onRemove }: {
+// 可拖拽的面板项（带展开细节 + 删除）
+function DraggableItem({ id, title, summary, borderColor, onRemove }: {
   id: string
   title: string
+  summary?: string
   borderColor: string
   onRemove: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id });
+  const [expanded, setExpanded] = useState(false);
 
   const style = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
@@ -42,17 +45,40 @@ function DraggableItem({ id, title, borderColor, onRemove }: {
     <div
       ref={setNodeRef}
       style={style}
-      className={`group ml-6 py-1.5 pl-3 pr-1 border-l-2 ${borderColor} text-xs text-slate-700 flex items-center justify-between cursor-grab active:cursor-grabbing ${isDragging ? 'opacity-50' : ''}`}
-      {...listeners}
-      {...attributes}
+      className={`group ml-6 my-1 rounded-md border-l-2 ${borderColor} ${isDragging ? 'opacity-50' : ''}`}
     >
-      <span className="truncate">{title}</span>
-      <button
-        onClick={(e) => { e.stopPropagation(); onRemove(); }}
-        className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-slate-100 rounded transition-opacity"
-      >
-        <X className="w-3 h-3 text-slate-400" />
-      </button>
+      <div className="flex items-center py-1.5 pl-2 pr-1">
+        {/* 拖拽手柄 */}
+        <div className="cursor-grab active:cursor-grabbing mr-1 opacity-0 group-hover:opacity-50" {...listeners} {...attributes}>
+          <GripVertical className="w-3 h-3 text-slate-400" />
+        </div>
+
+        {/* 展开/折叠箭头 */}
+        {summary ? (
+          <button onClick={() => setExpanded(!expanded)} className="mr-1 p-0.5">
+            <ChevronRight className={`w-3 h-3 text-slate-400 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+          </button>
+        ) : (
+          <div className="w-4 mr-1" />
+        )}
+
+        <span className="text-xs text-slate-700 flex-1 truncate">{title}</span>
+
+        {/* 删除按钮 */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-slate-100 rounded transition-opacity"
+        >
+          <X className="w-3 h-3 text-slate-400" />
+        </button>
+      </div>
+
+      {/* 展开细节 */}
+      {expanded && summary && (
+        <div className="pl-8 pr-2 pb-2 text-[11px] text-slate-500 leading-relaxed">
+          {summary}
+        </div>
+      )}
     </div>
   );
 }
@@ -79,7 +105,7 @@ export function DecisionDrawer() {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     confirmed: true,
     pending: true,
-    next: false,
+    next: true,
   });
 
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -88,17 +114,17 @@ export function DecisionDrawer() {
     setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // 直接从 nodes 派生，包含 nodeId
+  // 直接从 nodes 派生，包含 nodeId 和 summary
   const confirmedItems = useMemo(
     () => nodes
       .filter(n => n.type === 'direction' && n.data.status === 'confirmed')
-      .map(n => ({ id: n.id, title: (n as DirectionCanvasNode).data.title })),
+      .map(n => ({ id: n.id, title: (n as DirectionCanvasNode).data.title, summary: (n as DirectionCanvasNode).data.summary })),
     [nodes]
   );
   const pendingItems = useMemo(
     () => nodes
       .filter(n => n.type === 'direction' && n.data.status === 'pending')
-      .map(n => ({ id: n.id, title: (n as DirectionCanvasNode).data.title })),
+      .map(n => ({ id: n.id, title: (n as DirectionCanvasNode).data.title, summary: (n as DirectionCanvasNode).data.summary })),
     [nodes]
   );
 
@@ -170,6 +196,7 @@ export function DecisionDrawer() {
                           key={item.id}
                           id={item.id}
                           title={item.title}
+                          summary={item.summary}
                           borderColor="border-emerald-300"
                           onRemove={() => removeFromPanel(item.id)}
                         />
@@ -197,6 +224,7 @@ export function DecisionDrawer() {
                           key={item.id}
                           id={item.id}
                           title={item.title}
+                          summary={item.summary}
                           borderColor="border-amber-300"
                           onRemove={() => removeFromPanel(item.id)}
                         />
@@ -220,7 +248,7 @@ export function DecisionDrawer() {
                       <p className="ml-6 py-1.5 pl-3 text-xs text-slate-400">确认方向后自动生成</p>
                     ) : (
                       nextSteps.map((step) => (
-                        <div key={step.id} className="ml-6 py-1.5 pl-3 border-l-2 border-violet-300 text-xs text-slate-700">
+                        <div key={step.id} className="ml-6 my-1 py-1.5 pl-3 rounded-md border-l-2 border-violet-300 text-xs text-slate-700">
                           {step.title}
                         </div>
                       ))

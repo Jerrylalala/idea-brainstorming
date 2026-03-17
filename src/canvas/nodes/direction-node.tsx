@@ -21,7 +21,7 @@ export const DirectionNode = memo(({ id, data }: NodeProps<DirectionCanvasNode>)
   useEffect(() => {
     if (!isExpanding) return
 
-    const handleMouseDown = (e: MouseEvent) => {
+    const handlePointerDown = (e: PointerEvent) => {
       if (nodeRef.current && !nodeRef.current.contains(e.target as Node)) {
         // 有内容时保护用户输入，不收缩
         if (!opinionDraft.trim()) {
@@ -30,8 +30,15 @@ export const DirectionNode = memo(({ id, data }: NodeProps<DirectionCanvasNode>)
       }
     }
 
-    document.addEventListener('mousedown', handleMouseDown)
-    return () => document.removeEventListener('mousedown', handleMouseDown)
+    // 延迟注册避免与打开点击冲突
+    const timer = setTimeout(() => {
+      document.addEventListener('pointerdown', handlePointerDown, true)
+    }, 100)
+
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('pointerdown', handlePointerDown, true)
+    }
   }, [isExpanding, opinionDraft, id, cancelExpanding])
 
   // 状态样式：只用颜色，不用文字
