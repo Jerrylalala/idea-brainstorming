@@ -29,6 +29,7 @@ interface CanvasState {
   updateDraft: (nodeId: string, draft: string) => void
   sendMessage: (nodeId: string) => void
   updateTextContent: (nodeId: string, content: string) => void
+  deleteNode: (nodeId: string) => void
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
@@ -231,6 +232,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           ? { ...n, data: { ...n.data, content } }
           : n
       ) as CanvasNode[],
+    }))
+  },
+
+  deleteNode: (nodeId) => {
+    set((s) => ({
+      nodes: s.nodes.filter((n) => n.id !== nodeId),
+      edges: s.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
     }))
   },
 }))

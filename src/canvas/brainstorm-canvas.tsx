@@ -43,6 +43,9 @@ function BrainstormCanvasInner() {
         defaultEdgeOptions={{ type: 'reference' }}
         minZoom={0.1}
         maxZoom={2}
+        panOnScroll
+        zoomOnScroll={false}
+        deleteKeyCode="Delete"
         proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#e2e8f0" />
