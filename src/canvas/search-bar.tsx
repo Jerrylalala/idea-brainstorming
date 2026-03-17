@@ -26,7 +26,8 @@ export function SearchBar() {
 
   return (
     <motion.div
-      className="absolute top-6 left-1/2 z-10 flex items-center gap-2 rounded-full border-2 border-slate-200 bg-white px-4 py-2 shadow-lg"
+      className="absolute top-6 z-10 flex items-center gap-2 rounded-full border-2 border-slate-200 bg-white px-4 py-2 shadow-lg"
+      style={{ left: '50%' }}
       initial={{ x: '-50%', width: 480, opacity: 1 }}
       animate={{
         x: '-50%',
@@ -34,7 +35,6 @@ export function SearchBar() {
         opacity: isSubmitted ? 0 : 1,
       }}
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-      style={{ pointerEvents: isSubmitted ? 'none' : 'auto' }}
     >
       <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
       <Input
