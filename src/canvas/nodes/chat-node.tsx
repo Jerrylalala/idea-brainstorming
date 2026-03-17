@@ -8,7 +8,6 @@ export function ChatNode({ id, data, selected }: NodeProps<ChatCanvasNode>) {
   const updateDraft = useCanvasStore((s) => s.updateDraft)
   const sendMessage = useCanvasStore((s) => s.sendMessage)
   const expandNote = useCanvasStore((s) => s.expandNote)
-  const deleteNode = useCanvasStore((s) => s.deleteNode)
 
   const handleSend = useCallback(() => {
     if (data.draft.trim() && data.status !== 'streaming') {
@@ -38,7 +37,7 @@ export function ChatNode({ id, data, selected }: NodeProps<ChatCanvasNode>) {
       className={cn(
         'relative min-w-[300px] max-w-[480px] rounded-xl border bg-white shadow-sm',
         'transition-shadow duration-150',
-        selected ? 'border-sky-400 shadow-md ring-2 ring-sky-200' : 'border-slate-200',
+        selected ? 'border-sky-300 shadow-md' : 'border-slate-200',
       )}
     >
       {/* 顶部状态条 */}
@@ -48,16 +47,6 @@ export function ChatNode({ id, data, selected }: NodeProps<ChatCanvasNode>) {
           {data.status === 'streaming' ? '思考中...' : data.status === 'error' ? '出错了' : '对话'}
         </span>
       </div>
-
-      {/* 删除按钮 */}
-      {selected && data.status !== 'streaming' && (
-        <button
-          className="absolute -top-2 -right-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-white text-xs shadow hover:bg-rose-600"
-          onClick={(e) => { e.stopPropagation(); deleteNode(id) }}
-        >
-          ×
-        </button>
-      )}
 
       {/* 引用来源 */}
       {data.sourceRefs.length > 0 && (

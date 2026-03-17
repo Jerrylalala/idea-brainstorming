@@ -23,6 +23,26 @@ const edgeTypes = {
   reference: ReferenceEdge,
 }
 
+function DeleteToast() {
+  const lastDeleted = useCanvasStore((s) => s.lastDeleted)
+  const undoDelete = useCanvasStore((s) => s.undoDelete)
+
+  if (!lastDeleted) return null
+
+  return (
+    <div className="absolute bottom-6 left-1/2 z-50 -translate-x-1/2 flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5 shadow-lg">
+      <span className="text-sm text-slate-600">已删除节点</span>
+      <span className="text-slate-300">·</span>
+      <button
+        className="text-sm font-medium text-sky-500 hover:text-sky-700"
+        onClick={undoDelete}
+      >
+        撤销
+      </button>
+    </div>
+  )
+}
+
 function BrainstormCanvasInner() {
   const { nodes, edges, onNodesChange, onEdgesChange } = useCanvasStore()
   const { onConnectStart, onConnectEnd } = useCreateChatFromEdge()
@@ -52,6 +72,7 @@ function BrainstormCanvasInner() {
         <CanvasToolbar />
         <CanvasZoomIndicator />
       </ReactFlow>
+      <DeleteToast />
     </div>
   )
 }

@@ -11,7 +11,6 @@ export function TextNode({ id, data, selected }: NodeProps<TextCanvasNode>) {
   const containerRef = useRef<HTMLDivElement>(null)
   const updateTextContent = useCanvasStore((s) => s.updateTextContent)
   const addChatFromQuote = useCanvasStore((s) => s.addChatFromQuote)
-  const deleteNode = useCanvasStore((s) => s.deleteNode)
   const reactFlow = useReactFlow()
 
   const handleDoubleClick = useCallback(() => {
@@ -70,23 +69,13 @@ export function TextNode({ id, data, selected }: NodeProps<TextCanvasNode>) {
       className={cn(
         'relative min-w-[200px] max-w-[480px] rounded-xl border bg-white shadow-sm',
         'transition-shadow duration-150',
-        selected ? 'border-violet-400 shadow-md ring-2 ring-violet-200' : 'border-slate-200',
+        selected ? 'border-violet-300 shadow-md' : 'border-slate-200',
       )}
       onDoubleClick={handleDoubleClick}
       onMouseUp={handleMouseUp}
     >
       {/* 顶部装饰条 */}
       <div className="h-1.5 rounded-t-xl bg-gradient-to-r from-violet-400 to-purple-400" />
-
-      {/* 删除按钮 */}
-      {selected && (
-        <button
-          className="absolute -top-2 -right-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-white text-xs shadow hover:bg-rose-600"
-          onClick={(e) => { e.stopPropagation(); deleteNode(id) }}
-        >
-          ×
-        </button>
-      )}
 
       {/* 内容区 */}
       <div className="p-4">

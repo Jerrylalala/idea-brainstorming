@@ -14,6 +14,7 @@ import { buildSystemPrompt, buildMessages } from '../lib/prompt-builder'
 interface CanvasState {
   nodes: CanvasNode[]
   edges: CanvasEdge[]
+  lastDeleted: { nodes: CanvasNode[]; edges: CanvasEdge[] } | null
 
   // ReactFlow 回调
   onNodesChange: (changes: NodeChange<CanvasNode>[]) => void
@@ -30,13 +31,18 @@ interface CanvasState {
   sendMessage: (nodeId: string) => void
   updateTextContent: (nodeId: string, content: string) => void
   deleteNode: (nodeId: string) => void
+  undoDelete: () => void
 }
 
-export const useCanvasStore = create<CanvasState>((set, get) => ({
+export const useCanvasStore = create<CanvasState>((set, get) => {
+  let undoTimer: ReturnType<typeof setTimeout> | null = null
+
+  return {
   nodes: [
     createTextNode({ x: 100, y: 200 }, '在这里写下你的想法...\n\n双击编辑，从右侧圆点拖出连线创建对话。'),
   ],
   edges: [],
+  lastDeleted: null,
 
   onNodesChange: (changes) => {
     set({ nodes: applyNodeChanges(changes, get().nodes) as CanvasNode[] })
@@ -236,9 +242,33 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   deleteNode: (nodeId) => {
+    const { nodes, edges } = get()
+    const deletedNodes = nodes.filter((n) => n.id === nodeId)
+    const deletedEdges = edges.filter((e) => e.source === nodeId || e.target === nodeId)
+
+    // 保存快照用于撤销
+    set({
+      lastDeleted: { nodes: deletedNodes, edges: deletedEdges },
+      nodes: nodes.filter((n) => n.id !== nodeId),
+      edges: edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
+    })
+
+    // 5 秒后自动清除快照
+    if (undoTimer) clearTimeout(undoTimer)
+    undoTimer = setTimeout(() => {
+      set({ lastDeleted: null })
+      undoTimer = null
+    }, 5000)
+  },
+
+  undoDelete: () => {
+    const { lastDeleted } = get()
+    if (!lastDeleted) return
+    if (undoTimer) { clearTimeout(undoTimer); undoTimer = null }
     set((s) => ({
-      nodes: s.nodes.filter((n) => n.id !== nodeId),
-      edges: s.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
+      nodes: [...s.nodes, ...lastDeleted.nodes],
+      edges: [...s.edges, ...lastDeleted.edges],
+      lastDeleted: null,
     }))
   },
-}))
+}})
