@@ -3,6 +3,7 @@ import {
   Background,
   BackgroundVariant,
   ReactFlowProvider,
+  ConnectionLineType,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
@@ -64,6 +65,7 @@ function BrainstormCanvasInner() {
         onConnectEnd={onConnectEnd}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
+        connectionLineType={ConnectionLineType.SmoothStep}
         fitView
         fitViewOptions={{ padding: 0.3 }}
         defaultEdgeOptions={{ type: 'reference' }}

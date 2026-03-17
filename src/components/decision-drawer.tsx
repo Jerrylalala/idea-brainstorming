@@ -101,12 +101,13 @@ export function DecisionDrawer() {
   const { rightDrawerOpen, toggleRightDrawer } = useUIStore();
   const nodes = useCanvasStore((s) => s.nodes);
   const removeFromPanel = useCanvasStore((s) => s.removeFromPanel);
+  const moveToCategory = useCanvasStore((s) => s.moveToCategory);
 
   // 折叠状态管理
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     confirmed: true,
     pending: true,
-    next: true,
+    next: false,
   });
 
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -196,8 +197,24 @@ export function DecisionDrawer() {
     [pendingOrder, pendingNodesMap]
   );
 
-  // 根据已确认项生成下一步计划
-  const nextSteps = confirmedItems.map((item) => ({ id: `next-${item.id}`, title: `深入探索: ${item.title}` }));
+  // 快速笔记状态（localStorage 持久化）
+  const STORAGE_KEY_NOTES = 'decision-drawer-quick-notes';
+  const [quickNotes, setQuickNotes] = useState(() => {
+    return localStorage.getItem(STORAGE_KEY_NOTES) || '';
+  });
+
+  // 保存笔记到 localStorage
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_NOTES, quickNotes);
+  }, [quickNotes]);
+
+  // 使用率埋点
+  const trackNotesUsage = () => {
+    const stats = JSON.parse(localStorage.getItem('notes-usage') || '{"count":0,"lastUsed":null}');
+    stats.count += 1;
+    stats.lastUsed = new Date().toISOString();
+    localStorage.setItem('notes-usage', JSON.stringify(stats));
+  };
 
   // 找到正在拖拽的项
   const activeItem = activeId
@@ -216,15 +233,36 @@ export function DecisionDrawer() {
     const activeId = active.id as string;
     const overId = over.id as string;
 
-    // 判断是在哪个区域内拖拽
-    if (confirmedOrder.includes(activeId) && confirmedOrder.includes(overId)) {
+    const isActiveInConfirmed = confirmedOrder.includes(activeId);
+    const isActiveInPending = pendingOrder.includes(activeId);
+    const isOverInConfirmed = confirmedOrder.includes(overId);
+    const isOverInPending = pendingOrder.includes(overId);
+
+    // 跨区域拖拽
+    if (isActiveInConfirmed && isOverInPending) {
+      // 从 confirmed 拖到 pending
+      moveToCategory(activeId, 'pending');
+      setConfirmedOrder(items => items.filter(id => id !== activeId));
+      setPendingOrder(items => {
+        const overIndex = items.indexOf(overId);
+        return [...items.slice(0, overIndex + 1), activeId, ...items.slice(overIndex + 1)];
+      });
+    } else if (isActiveInPending && isOverInConfirmed) {
+      // 从 pending 拖到 confirmed
+      moveToCategory(activeId, 'confirmed');
+      setPendingOrder(items => items.filter(id => id !== activeId));
+      setConfirmedOrder(items => {
+        const overIndex = items.indexOf(overId);
+        return [...items.slice(0, overIndex + 1), activeId, ...items.slice(overIndex + 1)];
+      });
+    } else if (isActiveInConfirmed && isOverInConfirmed) {
       // 在 confirmed 区内排序
       setConfirmedOrder((items) => {
         const oldIndex = items.indexOf(activeId);
         const newIndex = items.indexOf(overId);
         return arrayMove(items, oldIndex, newIndex);
       });
-    } else if (pendingOrder.includes(activeId) && pendingOrder.includes(overId)) {
+    } else if (isActiveInPending && isOverInPending) {
       // 在 pending 区内排序
       setPendingOrder((items) => {
         const oldIndex = items.indexOf(activeId);
@@ -255,6 +293,7 @@ export function DecisionDrawer() {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
+            <SortableContext items={[...confirmedOrder, ...pendingOrder]} strategy={verticalListSortingStrategy}>
             <div className="p-3 space-y-1">
               {/* 已确认选型 */}
               <div>
@@ -265,7 +304,7 @@ export function DecisionDrawer() {
                   <span className="text-xs text-slate-400">{confirmedItems.length}</span>
                 </button>
                 {expandedSections.confirmed && (
-                  <SortableContext items={confirmedOrder} strategy={verticalListSortingStrategy}>
+                  <>
                     {confirmedItems.length === 0 ? (
                       <p className="ml-6 py-1.5 pl-3 text-xs text-slate-400">暂无已确认项</p>
                     ) : (
@@ -280,7 +319,7 @@ export function DecisionDrawer() {
                         />
                       ))
                     )}
-                  </SortableContext>
+                  </>
                 )}
               </div>
 
@@ -293,7 +332,7 @@ export function DecisionDrawer() {
                   <span className="text-xs text-slate-400">{pendingItems.length}</span>
                 </button>
                 {expandedSections.pending && (
-                  <SortableContext items={pendingOrder} strategy={verticalListSortingStrategy}>
+                  <>
                     {pendingItems.length === 0 ? (
                       <p className="ml-6 py-1.5 pl-3 text-xs text-slate-400">暂无待定项</p>
                     ) : (
@@ -308,33 +347,34 @@ export function DecisionDrawer() {
                         />
                       ))
                     )}
-                  </SortableContext>
+                  </>
                 )}
               </div>
 
-              {/* 下一步计划 */}
+              {/* 快速笔记（原"下一步计划"） */}
               <div>
                 <button onClick={() => toggleSection('next')} className="w-full flex items-center gap-2 py-2 hover:bg-slate-50 rounded-md px-1 transition-colors">
                   <ChevronRight className={`w-3.5 h-3.5 text-slate-400 transition-transform ${expandedSections.next ? 'rotate-90' : ''}`} />
                   <Rocket className="w-4 h-4 text-violet-500" />
-                  <span className="text-sm font-semibold text-slate-900 flex-1 text-left">下一步计划</span>
-                  <span className="text-xs text-slate-400">{nextSteps.length}</span>
+                  <span className="text-sm font-semibold text-slate-900 flex-1 text-left">快速笔记</span>
                 </button>
                 {expandedSections.next && (
-                  <div className="mb-2">
-                    {nextSteps.length === 0 ? (
-                      <p className="ml-6 py-1.5 pl-3 text-xs text-slate-400">确认方向后自动生成</p>
-                    ) : (
-                      nextSteps.map((step) => (
-                        <div key={step.id} className="ml-6 my-1 py-1.5 pl-3 rounded-md border-l-2 border-violet-300 text-xs text-slate-700">
-                          {step.title}
-                        </div>
-                      ))
-                    )}
+                  <div className="ml-6 mr-1 mb-2">
+                    <textarea
+                      value={quickNotes}
+                      onChange={(e) => {
+                        setQuickNotes(e.target.value);
+                        trackNotesUsage();
+                      }}
+                      placeholder="记录想法、待办事项..."
+                      className="w-full rounded-md border border-slate-200 p-2 text-xs text-slate-700 placeholder:text-slate-400 focus:border-violet-300 focus:outline-none focus:ring-1 focus:ring-violet-200 resize-none"
+                      rows={3}
+                    />
                   </div>
                 )}
               </div>
             </div>
+            </SortableContext>
 
             <DragOverlay>
               {activeItem ? (

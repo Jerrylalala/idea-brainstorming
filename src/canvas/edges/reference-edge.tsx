@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import {
-  BaseEdge, getBezierPath, EdgeLabelRenderer,
+  BaseEdge, getSmoothStepPath, EdgeLabelRenderer,
   type EdgeProps,
   useReactFlow,
 } from '@xyflow/react'
@@ -17,9 +17,10 @@ export function ReferenceEdge({
   id, sourceX, sourceY, targetX, targetY,
   sourcePosition, targetPosition, data, selected,
 }: EdgeProps) {
-  const [edgePath, labelX, labelY] = getBezierPath({
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX, sourceY, targetX, targetY,
     sourcePosition, targetPosition,
+    borderRadius: 8,
   })
 
   const { fitView } = useReactFlow()
@@ -41,8 +42,9 @@ export function ReferenceEdge({
         path={edgePath}
         style={{
           stroke: style.stroke,
-          strokeWidth: selected ? 3 : 2,
+          strokeWidth: selected ? 2.5 : 1.5,
           strokeDasharray: style.dash || undefined,
+          opacity: selected ? 1 : 0.6,
           cursor: 'pointer',
         }}
         interactionWidth={20}
