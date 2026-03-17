@@ -4,12 +4,13 @@ import {
   type NodeChange, type EdgeChange,
 } from '@xyflow/react'
 import type {
-  CanvasNode, CanvasEdge, ChatCanvasNode,
+  CanvasNode, CanvasEdge, ChatCanvasNode, DirectionCanvasNode, DirectionNodeData,
   ChatMessage, SourceRef,
 } from '../types'
-import { createTextNode, createChatNode, createEdge } from '../lib/node-factory'
+import { createTextNode, createChatNode, createEdge, createDirectionNode, createIdeaNode } from '../lib/node-factory'
 import { aiClient } from '../lib/ai-client'
 import { buildSystemPrompt, buildMessages } from '../lib/prompt-builder'
+import { computeChildPositions } from '../lib/tree-layout'
 
 interface CanvasState {
   nodes: CanvasNode[]
@@ -32,6 +33,18 @@ interface CanvasState {
   updateTextContent: (nodeId: string, content: string) => void
   deleteNode: (nodeId: string) => void
   undoDelete: () => void
+
+  // 方向树操作
+  searchIdea: (idea: string) => Promise<void>
+  startExpanding: (nodeId: string) => void
+  updateOpinionDraft: (nodeId: string, draft: string) => void
+  submitOpinion: (nodeId: string) => Promise<void>
+  confirmDirection: (nodeId: string) => void
+  pendingDirection: (nodeId: string) => void
+
+  // 面板数据（派生状态）
+  confirmedDirections: () => DirectionNodeData[]
+  pendingDirections: () => DirectionNodeData[]
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => {
@@ -288,5 +301,196 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       edges: [...s.edges, ...lastDeleted.edges],
       lastDeleted: null,
     }))
+  },
+
+  // === 方向树操作 ===
+
+  searchIdea: async (idea) => {
+    // 1. 清除现有 direction/idea 节点（保留 text/chat）
+    set((s) => ({
+      nodes: s.nodes.filter(n => n.type !== 'direction' && n.type !== 'idea'),
+      edges: s.edges.filter(e => {
+        const sourceNode = s.nodes.find(n => n.id === e.source)
+        const targetNode = s.nodes.find(n => n.id === e.target)
+        return sourceNode?.type !== 'direction' && sourceNode?.type !== 'idea' &&
+               targetNode?.type !== 'direction' && targetNode?.type !== 'idea'
+      }),
+    }))
+
+    // 2. 在画布左侧创建 IdeaNode
+    const ideaNode = createIdeaNode({ x: 100, y: 300 }, idea)
+    set((s) => ({ nodes: [...s.nodes, ideaNode] }))
+
+    // 3. 设置生成状态
+    set((s) => ({
+      nodes: s.nodes.map(n =>
+        n.id === ideaNode.id ? { ...n, data: { ...n.data, status: 'generating' as const } } : n
+      ) as CanvasNode[],
+    }))
+
+    // 4. 调用 AI 生成方向
+    try {
+      const directions = await aiClient.generateDirections({ idea })
+
+      // 5. 计算子节点位置
+      const positions = computeChildPositions(ideaNode.position, 240, directions.length)
+
+      // 6. 创建 DirectionNode 数组 + 连接边
+      const directionNodes = directions.map((dir, i) =>
+        createDirectionNode(positions[i], dir.title, dir.summary, dir.keywords, 1, ideaNode.id)
+      )
+
+      const newEdges = directionNodes.map(node =>
+        createEdge(ideaNode.id, node.id, 'derived')
+      )
+
+      // 7. 更新 store
+      set((s) => ({
+        nodes: [
+          ...s.nodes.map(n =>
+            n.id === ideaNode.id ? { ...n, data: { ...n.data, status: 'idle' as const } } : n
+          ),
+          ...directionNodes,
+        ] as CanvasNode[],
+        edges: [...s.edges, ...newEdges],
+      }))
+    } catch {
+      set((s) => ({
+        nodes: s.nodes.map(n =>
+          n.id === ideaNode.id ? { ...n, data: { ...n.data, status: 'idle' as const } } : n
+        ) as CanvasNode[],
+      }))
+    }
+  },
+
+  startExpanding: (nodeId) => {
+    set((s) => ({
+      nodes: s.nodes.map(n =>
+        n.id === nodeId && n.type === 'direction'
+          ? { ...n, data: { ...n.data, isExpanding: true } }
+          : n
+      ) as CanvasNode[],
+    }))
+  },
+
+  updateOpinionDraft: (nodeId, draft) => {
+    set((s) => ({
+      nodes: s.nodes.map(n =>
+        n.id === nodeId && n.type === 'direction'
+          ? { ...n, data: { ...n.data, opinionDraft: draft } }
+          : n
+      ) as CanvasNode[],
+    }))
+  },
+
+  submitOpinion: async (nodeId) => {
+    const node = get().nodes.find(n => n.id === nodeId && n.type === 'direction') as DirectionCanvasNode | undefined
+    if (!node || !node.data.opinionDraft.trim()) return
+
+    // 1. 设置节点 status: 'loading'
+    set((s) => ({
+      nodes: s.nodes.map(n =>
+        n.id === nodeId && n.type === 'direction'
+          ? { ...n, data: { ...n.data, status: 'loading' as const, isExpanding: false } }
+          : n
+      ) as CanvasNode[],
+    }))
+
+    // 2. 构建 parentContext（遍历边找祖先链）
+    const ancestorTitles: string[] = []
+    let currentId: string | null = node.data.parentNodeId
+
+    while (currentId) {
+      const parentNode = get().nodes.find(n => n.id === currentId)
+      if (!parentNode) break
+
+      if (parentNode.type === 'direction') {
+        ancestorTitles.unshift(parentNode.data.title)
+        currentId = parentNode.data.parentNodeId
+      } else if (parentNode.type === 'idea') {
+        ancestorTitles.unshift(parentNode.data.idea)
+        currentId = null
+      } else {
+        break
+      }
+    }
+
+    // 3. 调用 AI 生成子方向
+    try {
+      const directions = await aiClient.generateDirections({
+        idea: node.data.opinionDraft.trim(),
+        parentContext: {
+          parentTitle: node.data.title,
+          parentSummary: node.data.summary,
+          userOpinion: node.data.opinionDraft.trim(),
+          ancestorTitles,
+        },
+      })
+
+      // 4. 计算子节点位置（父节点右侧 320px，垂直均匀分布）
+      const positions = computeChildPositions(node.position, 260, directions.length)
+
+      // 5. 创建子节点 + 边
+      const childNodes = directions.map((dir, i) =>
+        createDirectionNode(positions[i], dir.title, dir.summary, dir.keywords, node.data.depth + 1, nodeId)
+      )
+
+      const newEdges = childNodes.map(child =>
+        createEdge(nodeId, child.id, 'derived')
+      )
+
+      // 6. 重置父节点状态
+      set((s) => ({
+        nodes: [
+          ...s.nodes.map(n =>
+            n.id === nodeId && n.type === 'direction'
+              ? { ...n, data: { ...n.data, status: 'idle' as const, opinionDraft: '' } }
+              : n
+          ),
+          ...childNodes,
+        ] as CanvasNode[],
+        edges: [...s.edges, ...newEdges],
+      }))
+    } catch {
+      set((s) => ({
+        nodes: s.nodes.map(n =>
+          n.id === nodeId && n.type === 'direction'
+            ? { ...n, data: { ...n.data, status: 'idle' as const } }
+            : n
+        ) as CanvasNode[],
+      }))
+    }
+  },
+
+  confirmDirection: (nodeId) => {
+    set((s) => ({
+      nodes: s.nodes.map(n =>
+        n.id === nodeId && n.type === 'direction'
+          ? { ...n, data: { ...n.data, status: 'confirmed' as const } }
+          : n
+      ) as CanvasNode[],
+    }))
+  },
+
+  pendingDirection: (nodeId) => {
+    set((s) => ({
+      nodes: s.nodes.map(n =>
+        n.id === nodeId && n.type === 'direction'
+          ? { ...n, data: { ...n.data, status: 'pending' as const } }
+          : n
+      ) as CanvasNode[],
+    }))
+  },
+
+  confirmedDirections: () => {
+    return get().nodes
+      .filter(n => n.type === 'direction' && n.data.status === 'confirmed')
+      .map(n => (n as DirectionCanvasNode).data)
+  },
+
+  pendingDirections: () => {
+    return get().nodes
+      .filter(n => n.type === 'direction' && n.data.status === 'pending')
+      .map(n => (n as DirectionCanvasNode).data)
   },
 }})
