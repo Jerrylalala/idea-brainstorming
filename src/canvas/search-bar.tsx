@@ -27,9 +27,11 @@ export function SearchBar() {
   if (isSubmitted) return null
 
   return (
-    <div
+    <motion.div
       className="fixed left-1/2 z-50 flex flex-col items-center pointer-events-none"
       style={{ top: '18%', transform: 'translateX(-50%)' }}
+      layoutId="idea-input"
+      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
     >
       {/* 标题文字 */}
       <motion.h1
@@ -68,6 +70,6 @@ export function SearchBar() {
         探索
       </Button>
       </motion.div>
-    </div>
+    </motion.div>
   )
 }

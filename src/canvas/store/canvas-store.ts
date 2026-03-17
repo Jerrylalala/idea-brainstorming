@@ -3,6 +3,7 @@ import {
   applyNodeChanges, applyEdgeChanges,
   type NodeChange, type EdgeChange,
 } from '@xyflow/react'
+import dagre from 'dagre'
 import type {
   CanvasNode, CanvasEdge, ChatCanvasNode, DirectionCanvasNode, DirectionNodeData,
   ChatMessage, SourceRef,
@@ -11,6 +12,63 @@ import { createTextNode, createChatNode, createEdge, createDirectionNode, create
 import { aiClient } from '../lib/ai-client'
 import { buildSystemPrompt, buildMessages } from '../lib/prompt-builder'
 import { computeChildPositions } from '../lib/tree-layout'
+
+// Dagre 布局配置
+const dagreGraph = new dagre.graphlib.Graph()
+dagreGraph.setDefaultEdgeLabel(() => ({}))
+
+const NODE_WIDTH = 280
+const NODE_HEIGHT = 120
+
+/**
+ * 使用 dagre 算法计算节点布局
+ * @param nodes 节点数组
+ * @param edges 边数组
+ * @param direction 布局方向：'TB' (从上到下) 或 'LR' (从左到右)
+ */
+function getLayoutedElements(
+  nodes: CanvasNode[],
+  edges: CanvasEdge[],
+  direction: 'TB' | 'LR' = 'LR'
+): CanvasNode[] {
+  const isHorizontal = direction === 'LR'
+  dagreGraph.setGraph({
+    rankdir: direction,
+    nodesep: 80,  // 节点水平间距
+    ranksep: 60,  // 层级垂直间距
+    edgesep: 100, // 边最小长度
+  })
+
+  // 添加节点到 dagre 图
+  nodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT })
+  })
+
+  // 添加边到 dagre 图
+  edges.forEach((edge) => {
+    dagreGraph.setEdge(edge.source, edge.target)
+  })
+
+  // 执行布局计算
+  dagre.layout(dagreGraph)
+
+  // 更新节点位置
+  return nodes.map((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id)
+
+    return {
+      ...node,
+      position: {
+        x: nodeWithPosition.x - NODE_WIDTH / 2,
+        y: nodeWithPosition.y - NODE_HEIGHT / 2,
+      },
+      style: {
+        ...node.style,
+        transition: 'all 0.3s ease',
+      },
+    }
+  })
+}
 
 interface CanvasState {
   nodes: CanvasNode[]
@@ -50,6 +108,9 @@ interface CanvasState {
   // 面板操作
   removeFromPanel: (nodeId: string) => void
   moveToCategory: (nodeId: string, newStatus: 'confirmed' | 'pending' | 'idle') => void
+
+  // 布局操作
+  layoutNodes: () => void
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => {
@@ -358,6 +419,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
         ] as CanvasNode[],
         edges: [...s.edges, ...newEdges],
       }))
+
+      // 8. 执行自动布局
+      get().layoutNodes()
     } catch {
       set((s) => ({
         nodes: s.nodes.map(n =>
@@ -466,6 +530,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
         ] as CanvasNode[],
         edges: [...s.edges, ...newEdges],
       }))
+
+      // 7. 执行自动布局
+      get().layoutNodes()
     } catch {
       set((s) => ({
         nodes: s.nodes.map(n =>
@@ -528,4 +595,29 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       ) as CanvasNode[],
     }))
   },
+
+  layoutNodes: () => {
+    const { nodes, edges } = get()
+    // 只对 direction 和 idea 节点进行布局
+    const directionNodes = nodes.filter(n => n.type === 'direction' || n.type === 'idea')
+    const directionEdges = edges.filter(e => {
+      const sourceNode = nodes.find(n => n.id === e.source)
+      const targetNode = nodes.find(n => n.id === e.target)
+      return (sourceNode?.type === 'direction' || sourceNode?.type === 'idea') &&
+             (targetNode?.type === 'direction' || targetNode?.type === 'idea')
+    })
+
+    if (directionNodes.length === 0) return
+
+    const layoutedNodes = getLayoutedElements(directionNodes, directionEdges, 'LR')
+
+    // 更新节点位置
+    set((s) => ({
+      nodes: s.nodes.map(n => {
+        const layoutedNode = layoutedNodes.find(ln => ln.id === n.id)
+        return layoutedNode || n
+      }) as CanvasNode[],
+    }))
+  },
 }})
+

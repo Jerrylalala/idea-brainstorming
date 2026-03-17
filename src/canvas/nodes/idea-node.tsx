@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { motion } from 'framer-motion'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { Loader2, Lightbulb } from 'lucide-react'
 import type { IdeaCanvasNode } from '../types'
@@ -7,7 +8,11 @@ export const IdeaNode = memo(({ data }: NodeProps<IdeaCanvasNode>) => {
   const { idea, status } = data
 
   return (
-    <div className="w-fit min-w-[200px] max-w-[500px] rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <motion.div
+      className="w-fit min-w-[200px] max-w-[500px] rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden"
+      layoutId="idea-input"
+      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+    >
       <div className="flex items-center gap-3 px-4 py-3">
         {status === 'generating' ? (
           <Loader2 className="w-4 h-4 animate-spin text-amber-500 flex-shrink-0" />
@@ -18,7 +23,7 @@ export const IdeaNode = memo(({ data }: NodeProps<IdeaCanvasNode>) => {
       </div>
 
       <Handle type="source" position={Position.Right} className="!bg-amber-500" />
-    </div>
+    </motion.div>
   )
 })
 

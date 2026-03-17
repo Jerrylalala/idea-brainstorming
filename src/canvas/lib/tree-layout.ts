@@ -1,4 +1,4 @@
-const HORIZONTAL_GAP = 80   // 父子节点水平间距（紧凑）
+const HORIZONTAL_GAP = 32   // 父子节点水平间距（紧凑）
 const VERTICAL_GAP = 60     // 兄弟节点垂直间距（单行节点高度约 50px）
 const COLUMN_TOLERANCE = 100 // 判断"同一列"的 x 坐标容差
 const DEFAULT_NODE_HEIGHT = 50

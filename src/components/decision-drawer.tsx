@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   CheckCircle2,
@@ -9,7 +9,6 @@ import {
   PanelRightOpen,
   Rocket,
   X,
-  GripVertical,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -22,9 +21,14 @@ import {
   DragOverlay,
   type DragStartEvent,
   type DragEndEvent,
-  useDroppable,
-  useDraggable,
 } from '@dnd-kit/core';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 // 可拖拽的面板项（带展开细节 + 删除）
 function DraggableItem({ id, title, summary, borderColor, onRemove }: {
@@ -34,12 +38,13 @@ function DraggableItem({ id, title, summary, borderColor, onRemove }: {
   borderColor: string
   onRemove: () => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   const [expanded, setExpanded] = useState(false);
 
-  const style = transform ? {
-    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-  } : undefined;
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
   return (
     <div
@@ -47,15 +52,18 @@ function DraggableItem({ id, title, summary, borderColor, onRemove }: {
       style={style}
       className={`group ml-6 my-1 rounded-md border-l-2 ${borderColor} ${isDragging ? 'opacity-50' : ''}`}
     >
-      <div className="flex items-center py-1.5 pl-2 pr-1">
-        {/* 拖拽手柄 */}
-        <div className="cursor-grab active:cursor-grabbing mr-1 opacity-0 group-hover:opacity-50" {...listeners} {...attributes}>
-          <GripVertical className="w-3 h-3 text-slate-400" />
-        </div>
-
+      <div
+        className="flex items-center py-1.5 pl-2 pr-1 cursor-grab active:cursor-grabbing hover:bg-slate-50 transition-colors"
+        {...attributes}
+        {...listeners}
+      >
         {/* 展开/折叠箭头 */}
         {summary ? (
-          <button onClick={() => setExpanded(!expanded)} className="mr-1 p-0.5">
+          <button
+            onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+            className="mr-1 p-0.5"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
             <ChevronRight className={`w-3 h-3 text-slate-400 transition-transform ${expanded ? 'rotate-90' : ''}`} />
           </button>
         ) : (
@@ -67,6 +75,7 @@ function DraggableItem({ id, title, summary, borderColor, onRemove }: {
         {/* 删除按钮 */}
         <button
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          onPointerDown={(e) => e.stopPropagation()}
           className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-slate-100 rounded transition-opacity"
         >
           <X className="w-3 h-3 text-slate-400" />
@@ -83,23 +92,15 @@ function DraggableItem({ id, title, summary, borderColor, onRemove }: {
   );
 }
 
-// 可接收拖拽的区域
-function DroppableSection({ id, children }: { id: string; children: React.ReactNode }) {
-  const { setNodeRef, isOver } = useDroppable({ id });
-
-  return (
-    <div ref={setNodeRef} className={`min-h-[8px] transition-colors ${isOver ? 'bg-slate-50 rounded' : ''}`}>
-      {children}
-    </div>
-  );
-}
+// localStorage 键名
+const STORAGE_KEY_CONFIRMED = 'decision-drawer-confirmed-order';
+const STORAGE_KEY_PENDING = 'decision-drawer-pending-order';
 
 // 右侧可收起决策抽屉
 export function DecisionDrawer() {
   const { rightDrawerOpen, toggleRightDrawer } = useUIStore();
   const nodes = useCanvasStore((s) => s.nodes);
   const removeFromPanel = useCanvasStore((s) => s.removeFromPanel);
-  const moveToCategory = useCanvasStore((s) => s.moveToCategory);
 
   // 折叠状态管理
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -110,22 +111,89 @@ export function DecisionDrawer() {
 
   const [activeId, setActiveId] = useState<string | null>(null);
 
+  // 排序状态（存储 nodeId 数组）
+  const [confirmedOrder, setConfirmedOrder] = useState<string[]>([]);
+  const [pendingOrder, setPendingOrder] = useState<string[]>([]);
+
   const toggleSection = (key: string) => {
     setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // 直接从 nodes 派生，包含 nodeId 和 summary
-  const confirmedItems = useMemo(
-    () => nodes
-      .filter(n => n.type === 'direction' && n.data.status === 'confirmed')
-      .map(n => ({ id: n.id, title: (n as DirectionCanvasNode).data.title, summary: (n as DirectionCanvasNode).data.summary })),
+  // 从 nodes 派生原始数据
+  const confirmedNodesMap = useMemo(
+    () => new Map(
+      nodes
+        .filter(n => n.type === 'direction' && n.data.status === 'confirmed')
+        .map(n => [n.id, { id: n.id, title: (n as DirectionCanvasNode).data.title, summary: (n as DirectionCanvasNode).data.summary }])
+    ),
     [nodes]
   );
-  const pendingItems = useMemo(
-    () => nodes
-      .filter(n => n.type === 'direction' && n.data.status === 'pending')
-      .map(n => ({ id: n.id, title: (n as DirectionCanvasNode).data.title, summary: (n as DirectionCanvasNode).data.summary })),
+
+  const pendingNodesMap = useMemo(
+    () => new Map(
+      nodes
+        .filter(n => n.type === 'direction' && n.data.status === 'pending')
+        .map(n => [n.id, { id: n.id, title: (n as DirectionCanvasNode).data.title, summary: (n as DirectionCanvasNode).data.summary }])
+    ),
     [nodes]
+  );
+
+  // 初始化排序：从 localStorage 读取，或使用默认顺序
+  useEffect(() => {
+    const storedConfirmed = localStorage.getItem(STORAGE_KEY_CONFIRMED);
+    const storedPending = localStorage.getItem(STORAGE_KEY_PENDING);
+
+    if (storedConfirmed) {
+      try {
+        const parsed = JSON.parse(storedConfirmed) as string[];
+        // 过滤掉已不存在的 nodeId
+        const validOrder = parsed.filter(id => confirmedNodesMap.has(id));
+        // 添加新出现的 nodeId
+        const newIds = Array.from(confirmedNodesMap.keys()).filter(id => !validOrder.includes(id));
+        setConfirmedOrder([...validOrder, ...newIds]);
+      } catch {
+        setConfirmedOrder(Array.from(confirmedNodesMap.keys()));
+      }
+    } else {
+      setConfirmedOrder(Array.from(confirmedNodesMap.keys()));
+    }
+
+    if (storedPending) {
+      try {
+        const parsed = JSON.parse(storedPending) as string[];
+        const validOrder = parsed.filter(id => pendingNodesMap.has(id));
+        const newIds = Array.from(pendingNodesMap.keys()).filter(id => !validOrder.includes(id));
+        setPendingOrder([...validOrder, ...newIds]);
+      } catch {
+        setPendingOrder(Array.from(pendingNodesMap.keys()));
+      }
+    } else {
+      setPendingOrder(Array.from(pendingNodesMap.keys()));
+    }
+  }, [confirmedNodesMap, pendingNodesMap]);
+
+  // 保存排序到 localStorage
+  useEffect(() => {
+    if (confirmedOrder.length > 0) {
+      localStorage.setItem(STORAGE_KEY_CONFIRMED, JSON.stringify(confirmedOrder));
+    }
+  }, [confirmedOrder]);
+
+  useEffect(() => {
+    if (pendingOrder.length > 0) {
+      localStorage.setItem(STORAGE_KEY_PENDING, JSON.stringify(pendingOrder));
+    }
+  }, [pendingOrder]);
+
+  // 按排序生成最终列表
+  const confirmedItems = useMemo(
+    () => confirmedOrder.map(id => confirmedNodesMap.get(id)).filter(Boolean) as { id: string; title: string; summary?: string }[],
+    [confirmedOrder, confirmedNodesMap]
+  );
+
+  const pendingItems = useMemo(
+    () => pendingOrder.map(id => pendingNodesMap.get(id)).filter(Boolean) as { id: string; title: string; summary?: string }[],
+    [pendingOrder, pendingNodesMap]
   );
 
   // 根据已确认项生成下一步计划
@@ -143,16 +211,26 @@ export function DecisionDrawer() {
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveId(null);
     const { active, over } = event;
-    if (!over) return;
+    if (!over || active.id === over.id) return;
 
-    const nodeId = active.id as string;
-    const targetZone = over.id as string;
+    const activeId = active.id as string;
+    const overId = over.id as string;
 
-    // 跨区拖拽
-    if (targetZone === 'confirmed') {
-      moveToCategory(nodeId, 'confirmed');
-    } else if (targetZone === 'pending') {
-      moveToCategory(nodeId, 'pending');
+    // 判断是在哪个区域内拖拽
+    if (confirmedOrder.includes(activeId) && confirmedOrder.includes(overId)) {
+      // 在 confirmed 区内排序
+      setConfirmedOrder((items) => {
+        const oldIndex = items.indexOf(activeId);
+        const newIndex = items.indexOf(overId);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    } else if (pendingOrder.includes(activeId) && pendingOrder.includes(overId)) {
+      // 在 pending 区内排序
+      setPendingOrder((items) => {
+        const oldIndex = items.indexOf(activeId);
+        const newIndex = items.indexOf(overId);
+        return arrayMove(items, oldIndex, newIndex);
+      });
     }
   };
 
@@ -187,7 +265,7 @@ export function DecisionDrawer() {
                   <span className="text-xs text-slate-400">{confirmedItems.length}</span>
                 </button>
                 {expandedSections.confirmed && (
-                  <DroppableSection id="confirmed">
+                  <SortableContext items={confirmedOrder} strategy={verticalListSortingStrategy}>
                     {confirmedItems.length === 0 ? (
                       <p className="ml-6 py-1.5 pl-3 text-xs text-slate-400">暂无已确认项</p>
                     ) : (
@@ -202,7 +280,7 @@ export function DecisionDrawer() {
                         />
                       ))
                     )}
-                  </DroppableSection>
+                  </SortableContext>
                 )}
               </div>
 
@@ -215,7 +293,7 @@ export function DecisionDrawer() {
                   <span className="text-xs text-slate-400">{pendingItems.length}</span>
                 </button>
                 {expandedSections.pending && (
-                  <DroppableSection id="pending">
+                  <SortableContext items={pendingOrder} strategy={verticalListSortingStrategy}>
                     {pendingItems.length === 0 ? (
                       <p className="ml-6 py-1.5 pl-3 text-xs text-slate-400">暂无待定项</p>
                     ) : (
@@ -230,7 +308,7 @@ export function DecisionDrawer() {
                         />
                       ))
                     )}
-                  </DroppableSection>
+                  </SortableContext>
                 )}
               </div>
 
