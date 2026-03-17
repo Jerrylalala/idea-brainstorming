@@ -3,8 +3,8 @@ import { useNodesInitialized, useReactFlow } from '@xyflow/react'
 import { useCanvasStore } from '../store/canvas-store'
 import type { CanvasNode, CanvasEdge } from '../types'
 
-const HORIZONTAL_GAP = 300  // 父→子水平间距
-const VERTICAL_GAP = 32     // 兄弟节点垂直间距
+const HORIZONTAL_GAP = 150  // 父→子水平间距
+const VERTICAL_GAP = 16     // 兄弟节点垂直间距
 const DEFAULT_WIDTH = 420
 const DEFAULT_HEIGHT = 80
 
