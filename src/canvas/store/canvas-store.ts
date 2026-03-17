@@ -46,6 +46,10 @@ interface CanvasState {
   // 面板数据（派生状态）
   confirmedDirections: () => DirectionNodeData[]
   pendingDirections: () => DirectionNodeData[]
+
+  // 面板操作
+  removeFromPanel: (nodeId: string) => void
+  moveToCategory: (nodeId: string, newStatus: 'confirmed' | 'pending' | 'idle') => void
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => {
@@ -503,5 +507,25 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
     return get().nodes
       .filter(n => n.type === 'direction' && n.data.status === 'pending')
       .map(n => (n as DirectionCanvasNode).data)
+  },
+
+  removeFromPanel: (nodeId) => {
+    set((s) => ({
+      nodes: s.nodes.map(n =>
+        n.id === nodeId && n.type === 'direction'
+          ? { ...n, data: { ...n.data, status: 'idle' as const } }
+          : n
+      ) as CanvasNode[],
+    }))
+  },
+
+  moveToCategory: (nodeId, newStatus) => {
+    set((s) => ({
+      nodes: s.nodes.map(n =>
+        n.id === nodeId && n.type === 'direction'
+          ? { ...n, data: { ...n.data, status: newStatus as DirectionCanvasNode['data']['status'] } }
+          : n
+      ) as CanvasNode[],
+    }))
   },
 }})
