@@ -14,6 +14,7 @@ import { IdeaNode } from './nodes/idea-node'
 import { ReferenceEdge } from './edges/reference-edge'
 import { CanvasToolbar } from './canvas-toolbar'
 import { CanvasZoomIndicator } from './canvas-zoom-indicator'
+import { SearchBar } from './search-bar'
 import { useCreateChatFromEdge } from './hooks/use-create-chat-from-edge'
 
 const nodeTypes = {
@@ -53,6 +54,7 @@ function BrainstormCanvasInner() {
 
   return (
     <div className="relative h-full w-full">
+      <SearchBar />
       <ReactFlow
         nodes={nodes}
         edges={edges}
