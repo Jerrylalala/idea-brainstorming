@@ -76,7 +76,7 @@ export function ChatNode({ id, data, selected }: NodeProps<ChatCanvasNode>) {
       )}
 
       {/* 消息列表 */}
-      <div className="max-h-[300px] overflow-y-auto px-4 py-2 space-y-3">
+      <div className="nowheel max-h-[300px] overflow-y-auto px-4 py-2 space-y-3">
         {data.messages.map((msg) => (
           <div key={msg.id}>
             <div
@@ -110,7 +110,7 @@ export function ChatNode({ id, data, selected }: NodeProps<ChatCanvasNode>) {
       <div className="border-t border-slate-100 px-3 py-2">
         <div className="flex items-end gap-2">
           <textarea
-            className="flex-1 min-h-[32px] max-h-[80px] resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-sky-300 focus:ring-1 focus:ring-sky-200"
+            className="nodrag nokey flex-1 min-h-[32px] max-h-[80px] resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-sky-300 focus:ring-1 focus:ring-sky-200"
             placeholder={data.status === 'streaming' ? '等待回复...' : '输入你的问题...'}
             value={data.draft}
             onChange={(e) => updateDraft(id, e.target.value)}

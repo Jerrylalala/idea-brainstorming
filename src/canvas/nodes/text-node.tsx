@@ -93,14 +93,14 @@ export function TextNode({ id, data, selected }: NodeProps<TextCanvasNode>) {
         {editing ? (
           <textarea
             ref={textRef}
-            className="w-full min-h-[60px] resize-none border-none bg-transparent text-sm text-slate-700 outline-none"
+            className="nodrag nokey w-full min-h-[60px] resize-none border-none bg-transparent text-sm text-slate-700 outline-none"
             value={data.content}
             onChange={(e) => updateTextContent(id, e.target.value)}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
           />
         ) : (
-          <div className="min-h-[40px] whitespace-pre-wrap text-sm text-slate-700 select-text">
+          <div className="nowheel min-h-[40px] whitespace-pre-wrap text-sm text-slate-700 select-text">
             {data.content || '双击编辑...'}
           </div>
         )}
