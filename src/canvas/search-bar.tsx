@@ -4,24 +4,18 @@ import { Search, Sparkles } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useCanvasStore } from './store/canvas-store'
-import { useReactFlow } from '@xyflow/react'
 
 export function SearchBar() {
   const [value, setValue] = useState('')
   const [isSubmitted, setIsSubmitted] = useState(false)
   const searchIdea = useCanvasStore((s) => s.searchIdea)
-  const reactFlow = useReactFlow()
 
   const handleSubmit = async () => {
     if (!value.trim()) return
 
     setIsSubmitted(true)
     await searchIdea(value.trim())
-
-    // 延迟 fitView 确保节点已渲染
-    requestAnimationFrame(() => {
-      reactFlow.fitView({ padding: 0.2, duration: 800 })
-    })
+    // fitView 由 useAutoLayout 的 pendingFocusNodes 自动处理
   }
 
   return (

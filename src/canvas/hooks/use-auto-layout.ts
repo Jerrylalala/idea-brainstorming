@@ -3,6 +3,12 @@ import { useNodesInitialized, useReactFlow } from '@xyflow/react'
 import { useCanvasStore } from '../store/canvas-store'
 import type { CanvasNode, CanvasEdge } from '../types'
 
+// 记录每次布局新增的节点 ID，用于聚焦
+let pendingFocusNodeIds: string[] = []
+export function setPendingFocusNodes(parentId: string, childIds: string[]) {
+  pendingFocusNodeIds = [parentId, ...childIds]
+}
+
 const HORIZONTAL_GAP = 150  // 父→子水平间距
 const VERTICAL_GAP = 16     // 兄弟节点垂直间距
 const DEFAULT_WIDTH = 420
@@ -96,7 +102,7 @@ function getLayoutedElements(
  */
 export function useAutoLayout() {
   const nodesInitialized = useNodesInitialized()
-  const { getNodes } = useReactFlow()
+  const { getNodes, fitView } = useReactFlow()
   const layoutVersion = useCanvasStore(s => s.layoutVersion)
   const storeNodes = useCanvasStore(s => s.nodes)
   const lastLayoutedVersion = useRef(-1)
@@ -149,7 +155,21 @@ export function useAutoLayout() {
         return layouted || n
       }) as CanvasNode[],
     }))
-  }, [getNodes])
+
+    // 布局完成后，聚焦到新增的父+子节点区域
+    if (pendingFocusNodeIds.length > 0) {
+      const focusIds = [...pendingFocusNodeIds]
+      pendingFocusNodeIds = []
+      // 等一帧让位置生效后再 fitView
+      requestAnimationFrame(() => {
+        fitView({
+          nodes: focusIds.map(id => ({ id })),
+          padding: 0.3,
+          duration: 600,
+        })
+      })
+    }
+  }, [getNodes, fitView])
 
   // 当 layoutVersion 变化时，触发布局
   useEffect(() => {

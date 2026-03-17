@@ -10,6 +10,7 @@ import type {
 import { createTextNode, createChatNode, createEdge, createDirectionNode, createIdeaNode } from '../lib/node-factory'
 import { aiClient } from '../lib/ai-client'
 import { buildSystemPrompt, buildMessages } from '../lib/prompt-builder'
+import { setPendingFocusNodes } from '../hooks/use-auto-layout'
 
 interface CanvasState {
   nodes: CanvasNode[]
@@ -339,9 +340,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
     try {
       const directions = await aiClient.generateDirections({ idea })
 
-      // 5. 创建 DirectionNode 数组（初始位置随意，dagre 会重新计算）
+      // 5. 创建 DirectionNode 数组（初始位置在父节点右侧，避免飞入动画）
+      const parentPos = ideaNode.position || { x: 100, y: 300 }
       const directionNodes = directions.map((dir, i) =>
-        createDirectionNode({ x: 0, y: i * 100 }, dir.title, dir.summary, dir.keywords, 1, ideaNode.id)
+        createDirectionNode(
+          { x: parentPos.x + 570, y: parentPos.y + i * 60 },
+          dir.title, dir.summary, dir.keywords, 1, ideaNode.id
+        )
       )
 
       const newEdges = directionNodes.map(node =>
@@ -359,7 +364,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
         edges: [...s.edges, ...newEdges],
       }))
 
-      // 8. 执行自动布局
+      // 8. 设置聚焦目标并执行自动布局
+      setPendingFocusNodes(ideaNode.id, directionNodes.map(n => n.id))
       get().layoutNodes()
     } catch {
       set((s) => ({
@@ -444,9 +450,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
         },
       })
 
-      // 4. 创建子节点（初始位置随意，dagre 会重新计算）
+      // 4. 创建子节点（初始位置在父节点右侧，避免飞入动画）
+      const parentPos = node.position || { x: 0, y: 0 }
       const childNodes = directions.map((dir, i) =>
-        createDirectionNode({ x: 0, y: i * 100 }, dir.title, dir.summary, dir.keywords, node.data.depth + 1, nodeId)
+        createDirectionNode(
+          { x: parentPos.x + 570, y: parentPos.y + i * 60 },
+          dir.title, dir.summary, dir.keywords, node.data.depth + 1, nodeId
+        )
       )
 
       const newEdges = childNodes.map(child =>
@@ -466,7 +476,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
         edges: [...s.edges, ...newEdges],
       }))
 
-      // 6. 执行自动布局
+      // 6. 设置聚焦目标并执行自动布局
+      setPendingFocusNodes(nodeId, childNodes.map(c => c.id))
       get().layoutNodes()
     } catch {
       set((s) => ({
