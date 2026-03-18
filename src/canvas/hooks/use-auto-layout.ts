@@ -91,7 +91,7 @@ function getLayoutedElements(
     return {
       ...n,
       position: pos,
-      style: { ...n.style, transition: 'all 0.3s ease' },
+      style: { ...n.style, transition: 'transform 0.3s ease' },
     }
   })
 }
@@ -106,6 +106,8 @@ export function useAutoLayout() {
   const layoutVersion = useCanvasStore(s => s.layoutVersion)
   const storeNodes = useCanvasStore(s => s.nodes)
   const lastLayoutedVersion = useRef(-1)
+  const retryCount = useRef(0)
+  const MAX_RETRIES = 20
 
   const runLayout = useCallback(() => {
     // 获取 ReactFlow 内部的节点（包含 measured 尺寸）
@@ -136,13 +138,23 @@ export function useAutoLayout() {
     // 检查所有可布局节点是否都已被测量
     const allMeasured = layoutableNodes.every(n => measuredNodes.has(n.id))
     if (!allMeasured) {
-      // 还有节点未测量，延迟重试
-      requestAnimationFrame(() => {
+      if (retryCount.current >= MAX_RETRIES) {
+        // 超时降级：用默认尺寸执行一次布局，不再等待
+        console.warn('[useAutoLayout] 节点测量超时，使用默认尺寸执行布局')
+        retryCount.current = 0
+        // fall through，让 getLayoutedElements 用 DEFAULT_WIDTH/HEIGHT 兜底
+      } else {
+        retryCount.current++
+        // 还有节点未测量，延迟重试
         requestAnimationFrame(() => {
-          runLayout()
+          requestAnimationFrame(() => {
+            runLayout()
+          })
         })
-      })
-      return
+        return
+      }
+    } else {
+      retryCount.current = 0
     }
 
     const layoutedNodes = getLayoutedElements(layoutableNodes, layoutableEdges, measuredNodes)

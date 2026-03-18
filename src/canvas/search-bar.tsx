@@ -8,13 +8,19 @@ import { useCanvasStore } from './store/canvas-store'
 export function SearchBar() {
   const [value, setValue] = useState('')
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const searchIdea = useCanvasStore((s) => s.searchIdea)
 
   const handleSubmit = async () => {
     if (!value.trim()) return
-
     setIsSubmitted(true)
-    await searchIdea(value.trim())
+    setError(null)
+    try {
+      await searchIdea(value.trim())
+    } catch {
+      setIsSubmitted(false)  // 恢复搜索框，允许重试
+      setError('探索失败，请重试')
+    }
     // fitView 由 useAutoLayout 的 pendingFocusNodes 自动处理
   }
 
@@ -69,6 +75,15 @@ export function SearchBar() {
             探索
           </Button>
           </motion.div>
+          {error && (
+            <motion.p
+              className="mt-2 text-sm text-red-500 pointer-events-auto"
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              {error}
+            </motion.p>
+          )}
         </motion.div>
       )}
     </AnimatePresence>

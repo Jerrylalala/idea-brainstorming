@@ -58,6 +58,7 @@ interface CanvasState {
 
 export const useCanvasStore = create<CanvasState>((set, get) => {
   let undoTimer: ReturnType<typeof setTimeout> | null = null
+  let currentSearchVersion = 0  // 版本号，用于取消过期的搜索请求
 
   return {
   nodes: [],  // 初始为空，等待用户搜索
@@ -66,7 +67,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
   layoutVersion: 0,
 
   onNodesChange: (changes) => {
-    set({ nodes: applyNodeChanges(changes, get().nodes) as CanvasNode[] })
+    const removeChanges = changes.filter(c => c.type === 'remove')
+    const otherChanges = changes.filter(c => c.type !== 'remove')
+
+    if (otherChanges.length > 0) {
+      set({ nodes: applyNodeChanges(otherChanges, get().nodes) as CanvasNode[] })
+    }
+
+    // Delete 键触发的 remove 变更走自定义删除逻辑（级联 + 设置 lastDeleted）
+    removeChanges.forEach(c => get().deleteNode((c as { id: string }).id))
   },
 
   onEdgesChange: (changes) => {
@@ -282,14 +291,26 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
 
   deleteNode: (nodeId) => {
     const { nodes, edges } = get()
-    const deletedNodes = nodes.filter((n) => n.id === nodeId)
-    const deletedEdges = edges.filter((e) => e.source === nodeId || e.target === nodeId)
 
-    // 保存快照用于撤销
+    // 递归收集所有后代节点 ID（direction 节点通过 parentNodeId 关联）
+    const collectDescendants = (id: string, collected: Set<string>) => {
+      collected.add(id)
+      nodes
+        .filter(n => n.type === 'direction' && (n as DirectionCanvasNode).data.parentNodeId === id)
+        .forEach(child => collectDescendants(child.id, collected))
+    }
+
+    const toDelete = new Set<string>()
+    collectDescendants(nodeId, toDelete)
+
+    const deletedNodes = nodes.filter(n => toDelete.has(n.id))
+    const deletedEdges = edges.filter(e => toDelete.has(e.source) || toDelete.has(e.target))
+
+    // 保存快照用于撤销（包含整棵子树）
     set({
       lastDeleted: { nodes: deletedNodes, edges: deletedEdges },
-      nodes: nodes.filter((n) => n.id !== nodeId),
-      edges: edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
+      nodes: nodes.filter(n => !toDelete.has(n.id)),
+      edges: edges.filter(e => !toDelete.has(e.source) && !toDelete.has(e.target)),
     })
 
     // 5 秒后自动清除快照
@@ -314,6 +335,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
   // === 方向树操作 ===
 
   searchIdea: async (idea) => {
+    const myVersion = ++currentSearchVersion
+
     // 1. 清除现有 direction/idea 节点（保留 text/chat）
     set((s) => ({
       nodes: s.nodes.filter(n => n.type !== 'direction' && n.type !== 'idea'),
@@ -339,6 +362,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
     // 4. 调用 AI 生成方向
     try {
       const directions = await aiClient.generateDirections({ idea })
+
+      // 新搜索已发起，丢弃本次结果
+      if (myVersion !== currentSearchVersion) return
 
       // 5. 创建 DirectionNode 数组（初始位置在父节点右侧，避免飞入动画）
       const parentPos = ideaNode.position || { x: 100, y: 300 }
@@ -367,12 +393,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       // 8. 设置聚焦目标并执行自动布局
       setPendingFocusNodes(ideaNode.id, directionNodes.map(n => n.id))
       get().layoutNodes()
-    } catch {
+    } catch (err) {
+      if (myVersion !== currentSearchVersion) return
       set((s) => ({
         nodes: s.nodes.map(n =>
           n.id === ideaNode.id ? { ...n, data: { ...n.data, status: 'idle' as const } } : n
         ) as CanvasNode[],
       }))
+      throw err  // 让 SearchBar 感知错误，恢复搜索框
     }
   },
 
