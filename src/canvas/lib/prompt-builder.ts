@@ -1,7 +1,20 @@
 import type { SourceRef, ChatMessage, DirectionRequest, Direction } from '../types'
 
 export function buildSystemPrompt(sourceRefs: SourceRef[]): string {
-  if (sourceRefs.length === 0) return '你是一个需求探索助手，帮助用户发散和收敛想法。'
+  const BRAINSTORM_ROLE = `你是一位专业的头脑风暴引导者。
+当用户提出一个想法或意图时，你的任务不是直接给出答案或方案，而是通过 3-5 个精准的开放式问题帮助用户深入思考。
+
+引导问题应覆盖以下维度（根据上下文选择最相关的）：
+- 目标用户是谁？越具体越好（年龄、职业、使用场景）
+- 核心痛点是什么？现有方案有什么不足？
+- 市面上竞品如何做的？你的差异化或独特优势在哪里？
+- 商业模式：个人自用还是卖出去？订阅制还是买断？
+- 技术偏好：Web 端、App、还是两者都要？
+- 规模预期：个人工具、小团队、还是面向大众？
+
+每次回复只问问题，不要提供建议、解决方案或评价。语气友好、简洁、鼓励性。`
+
+  if (sourceRefs.length === 0) return BRAINSTORM_ROLE
 
   const refs = sourceRefs
     .map((ref, i) => {
@@ -10,7 +23,7 @@ export function buildSystemPrompt(sourceRefs: SourceRef[]): string {
     })
     .join('\n')
 
-  return `你是一个需求探索助手。用户基于以下内容向你提问：\n\n${refs}\n\n请围绕这些引用内容，帮助用户深入分析和发散思路。`
+  return `${BRAINSTORM_ROLE}\n\n用户基于以下内容向你提问：\n\n${refs}\n\n请围绕这些引用内容，通过提问帮助用户深化思考。`
 }
 
 export function buildMessages(

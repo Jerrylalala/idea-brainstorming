@@ -54,6 +54,10 @@ interface CanvasState {
   // 布局操作
   layoutVersion: number
   layoutNodes: () => void
+
+  // Session 快照操作
+  loadSnapshot: (snapshot: { nodes: CanvasNode[]; edges: CanvasEdge[] }) => void
+  clearCanvas: () => void
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => {
@@ -577,6 +581,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
   // layoutNodes 现在只是触发信号，实际布局由 useAutoLayout hook 在 ReactFlow 内部执行
   layoutNodes: () => {
     set((s) => ({ layoutVersion: s.layoutVersion + 1 }))
+  },
+
+  loadSnapshot: (snapshot) => {
+    set({ nodes: snapshot.nodes, edges: snapshot.edges, lastDeleted: null })
+  },
+
+  clearCanvas: () => {
+    set({ nodes: [], edges: [], lastDeleted: null })
   },
 }})
 

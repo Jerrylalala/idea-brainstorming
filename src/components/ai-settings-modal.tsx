@@ -1,41 +1,52 @@
+// src/components/ai-settings-modal.tsx — 完整替换
 import { useState } from 'react'
 import { X, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useUIStore } from '@/store/ui-store'
-import { useAIConfigStore, PROVIDER_PRESETS, buildClient, type AIConfig, type ProviderPreset } from '@/canvas/lib/ai-config-store'
+import {
+  useAIConfigStore, PROVIDER_PRESETS, PROVIDER_MODELS,
+  buildClient, type ProviderConfig, type ProviderPreset,
+} from '@/canvas/lib/ai-config-store'
 
 export function AISettingsModal() {
   const settingsOpen = useUIStore((s) => s.settingsOpen)
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen)
-  const { config, setConfig, clearConfig } = useAIConfigStore()
+  const { configs, activeProvider, updateProviderConfig, clearProviderConfig } = useAIConfigStore()
 
-  const [provider, setProvider] = useState<ProviderPreset>(config?.provider ?? 'deepseek')
-  const [baseURL, setBaseURL] = useState(config?.baseURL ?? PROVIDER_PRESETS.deepseek.baseURL)
-  const [apiKey, setApiKey] = useState(config?.apiKey ?? '')
-  const [model, setModel] = useState(config?.model ?? PROVIDER_PRESETS.deepseek.model)
+  const initCfg = configs[activeProvider]
+  const [provider, setProvider] = useState<ProviderPreset>(activeProvider)
+  const [apiKey, setApiKey] = useState(initCfg?.apiKey ?? '')
+  const [baseURL, setBaseURL] = useState(initCfg?.baseURL ?? PROVIDER_PRESETS[activeProvider].baseURL)
+  const [model, setModel] = useState(initCfg?.model ?? PROVIDER_PRESETS[activeProvider].model)
   const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
   const [testMsg, setTestMsg] = useState('')
 
   if (!settingsOpen) return null
 
-  // 非 custom provider 的 Base URL 和 Model 由预设决定，不允许手动修改
   const isCustom = provider === 'custom'
 
   function handleProviderChange(p: ProviderPreset) {
     setProvider(p)
+    const existing = configs[p]
+    // 加载该供应商已保存的 apiKey（切换供应商不清空已有配置）
+    setApiKey(existing?.apiKey ?? '')
     if (p !== 'custom') {
       setBaseURL(PROVIDER_PRESETS[p].baseURL)
-      setModel(PROVIDER_PRESETS[p].model)
+      setModel(existing?.model ?? PROVIDER_PRESETS[p].model)
+    } else {
+      setBaseURL(existing?.baseURL ?? '')
+      setModel(existing?.model ?? '')
     }
     setTestStatus('idle')
     setTestMsg('')
   }
 
   async function handleTest() {
-    if (!apiKey || !baseURL) return
+    if (!apiKey) return
     setTestStatus('loading')
     setTestMsg('')
-    const gen = buildClient({ provider, baseURL, apiKey, model }).streamChat({
+    const effectiveURL = isCustom ? baseURL : PROVIDER_PRESETS[provider].baseURL
+    const gen = buildClient({ provider, baseURL: effectiveURL, apiKey, model }).streamChat({
       messages: [{ id: 'test', role: 'user', text: 'Hi', createdAt: Date.now() }],
       sourceRefs: [],
     })
@@ -53,8 +64,12 @@ export function AISettingsModal() {
   }
 
   function handleSave() {
-    const cfg: AIConfig = { provider, baseURL, apiKey, model }
-    setConfig(cfg)
+    const cfg: ProviderConfig = {
+      apiKey,
+      model,
+      ...(isCustom ? { baseURL } : {}),
+    }
+    updateProviderConfig(provider, cfg)
     setSettingsOpen(false)
   }
 
@@ -83,12 +98,12 @@ export function AISettingsModal() {
             </select>
           </div>
 
-          {/* Base URL — 预设 provider 只读 */}
+          {/* Base URL — 仅 custom 可编辑 */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">Base URL</label>
             <input
               type="text"
-              value={baseURL}
+              value={isCustom ? baseURL : PROVIDER_PRESETS[provider].baseURL}
               onChange={(e) => isCustom && setBaseURL(e.target.value)}
               readOnly={!isCustom}
               placeholder="https://api.example.com/v1"
@@ -109,20 +124,33 @@ export function AISettingsModal() {
               placeholder="sk-xxxxxxxxxxxxxxxx"
               className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
             />
-            <p className="mt-1 text-xs text-slate-400">API Key 存储在本地浏览器，请勿在公共设备使用</p>
+            <p className="mt-1 text-xs text-slate-400">
+              {configs[provider] ? '✓ 已保存此供应商的 Key' : '尚未保存此供应商的 Key'}
+            </p>
           </div>
 
-          {/* Model — 预设 provider 只读 */}
+          {/* Model — 预设供应商用下拉，custom 用文本框 */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">Model</label>
-            <input
-              type="text"
-              value={model}
-              onChange={(e) => isCustom && setModel(e.target.value)}
-              readOnly={!isCustom}
-              placeholder="deepseek-chat"
-              className={`h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300 ${isCustom ? 'bg-white' : 'bg-slate-50 text-slate-500 cursor-default'}`}
-            />
+            {isCustom ? (
+              <input
+                type="text"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder="model-name"
+                className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
+              />
+            ) : (
+              <select
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
+              >
+                {PROVIDER_MODELS[provider].map((m) => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* 测试连接 */}
@@ -131,7 +159,7 @@ export function AISettingsModal() {
               variant="outline"
               size="sm"
               onClick={handleTest}
-              disabled={!apiKey || !baseURL || testStatus === 'loading'}
+              disabled={!apiKey || testStatus === 'loading'}
               className="h-8 rounded-lg"
             >
               {testStatus === 'loading' && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
@@ -153,16 +181,16 @@ export function AISettingsModal() {
         {/* 底部按钮 */}
         <div className="mt-6 flex justify-between">
           <button
-            onClick={() => { clearConfig(); setSettingsOpen(false) }}
+            onClick={() => { clearProviderConfig(provider); setApiKey(''); setTestStatus('idle') }}
             className="text-sm text-slate-400 hover:text-slate-600"
           >
-            清除配置（使用 Mock）
+            清除此供应商配置
           </button>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => setSettingsOpen(false)} className="h-8 rounded-lg">
               取消
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={!apiKey || !baseURL || !model} className="h-8 rounded-lg">
+            <Button size="sm" onClick={handleSave} disabled={!apiKey || (!isCustom ? false : !baseURL) || !model} className="h-8 rounded-lg">
               保存
             </Button>
           </div>
