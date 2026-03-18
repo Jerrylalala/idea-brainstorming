@@ -1,7 +1,7 @@
 import { createOpenAI } from '@ai-sdk/openai'
-import { streamText, generateText, type LanguageModel } from 'ai'
+import { streamText, type LanguageModel } from 'ai'
 import type { AIClient, ChatRequest, ChatChunk, DirectionRequest, Direction } from '../types'
-import { buildDirectionPrompt, parseDirectionsJSON } from './prompt-builder'
+import { generateDirectionsFromModel } from './ai-client-shared'
 
 export class OpenAICompatibleClient implements AIClient {
   private model: LanguageModel
@@ -11,14 +11,14 @@ export class OpenAICompatibleClient implements AIClient {
     this.model = provider(modelId)
   }
 
-  async *streamChat(input: ChatRequest): AsyncGenerator<ChatChunk> {
+  async *streamChat(input: ChatRequest, signal?: AbortSignal): AsyncGenerator<ChatChunk> {
     const messages = input.messages.map(m => ({
       role: m.role as 'user' | 'assistant' | 'system',
       content: m.text,
     }))
 
     try {
-      const result = streamText({ model: this.model, messages })
+      const result = streamText({ model: this.model, messages, abortSignal: signal })
       for await (const delta of result.textStream) {
         yield { type: 'delta', text: delta }
       }
@@ -29,10 +29,6 @@ export class OpenAICompatibleClient implements AIClient {
   }
 
   async generateDirections(input: DirectionRequest): Promise<Direction[]> {
-    const result = await generateText({
-      model: this.model,
-      messages: [{ role: 'user', content: buildDirectionPrompt(input) }],
-    })
-    return parseDirectionsJSON(result.text)
+    return generateDirectionsFromModel(this.model, input)
   }
 }

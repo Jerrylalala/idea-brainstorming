@@ -36,18 +36,35 @@ export function AISettingsModal() {
     setTestMsg('')
   }
 
+  function isSecureURL(url: string): boolean {
+    if (!url) return true
+    try {
+      const { protocol, hostname } = new URL(url)
+      if (protocol === 'https:') return true
+      // 允许本地开发代理使用 HTTP
+      return protocol === 'http:' && (hostname === 'localhost' || hostname === '127.0.0.1')
+    } catch {
+      return false
+    }
+  }
+
   async function handleTest() {
     if (!apiKey) return
+    if (!isSecureURL(baseURL)) {
+      setTestStatus('error')
+      setTestMsg('Base URL 必须使用 HTTPS（本地地址除外）')
+      return
+    }
     setTestStatus('loading')
     setTestMsg('')
 
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 5000)
 
-    const gen = buildClient({ provider, baseURL, apiKey, model }).streamChat({
-      messages: [{ id: 'test', role: 'user', text: 'Hi', createdAt: Date.now() }],
-      sourceRefs: [],
-    })
+    const gen = buildClient({ provider, baseURL, apiKey, model }).streamChat(
+      { messages: [{ id: 'test', role: 'user', text: 'Hi', createdAt: Date.now() }], sourceRefs: [] },
+      controller.signal,
+    )
     try {
       const first = await Promise.race([
         gen.next(),
@@ -57,8 +74,8 @@ export function AISettingsModal() {
           )
         ),
       ])
-      if ((first as Awaited<ReturnType<typeof gen.next>>).value?.type === 'error') {
-        throw new Error((first as Awaited<ReturnType<typeof gen.next>>).value?.error)
+      if (first.value?.type === 'error') {
+        throw new Error(first.value.error)
       }
       setTestStatus('ok')
       setTestMsg('连接成功 ✓')
@@ -72,6 +89,7 @@ export function AISettingsModal() {
   }
 
   function handleSave() {
+    if (!isSecureURL(baseURL)) return  // HTTPS 校验（UI 层已有提示）
     const cfg: ProviderConfig = {
       apiKey,
       model,
@@ -195,7 +213,7 @@ export function AISettingsModal() {
             <Button variant="outline" size="sm" onClick={() => setSettingsOpen(false)} className="h-8 rounded-lg">
               取消
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={!apiKey || (!isCustom ? false : !baseURL) || !model} className="h-8 rounded-lg">
+            <Button size="sm" onClick={handleSave} disabled={!apiKey || (!isCustom ? false : !baseURL) || !model || !isSecureURL(baseURL)} className="h-8 rounded-lg">
               保存
             </Button>
           </div>

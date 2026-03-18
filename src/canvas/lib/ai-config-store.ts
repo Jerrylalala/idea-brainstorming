@@ -1,7 +1,7 @@
 // src/canvas/lib/ai-config-store.ts
 import { create } from 'zustand'
 import { MockAIClient } from './mock-ai'
-import { AnthropicAIClient } from './real-ai-client'
+import { AnthropicCompatibleClient } from './real-ai-client'
 import { OpenAICompatibleClient } from './openai-compatible-client'
 import type { AIClient } from '../types'
 
@@ -73,7 +73,7 @@ const LEGACY_KEY = 'ai_config'  // 旧格式，用于迁移
 export function buildClient(config: AIConfig | null): AIClient {
   if (!config || !config.apiKey) return new MockAIClient()
   if (ANTHROPIC_FORMAT_PROVIDERS.includes(config.provider)) {
-    return new AnthropicAIClient(config.apiKey, config.model, config.baseURL || undefined)
+    return new AnthropicCompatibleClient(config.apiKey, config.model, config.baseURL || undefined)
   }
   return new OpenAICompatibleClient(config.apiKey, config.baseURL, config.model)
 }
