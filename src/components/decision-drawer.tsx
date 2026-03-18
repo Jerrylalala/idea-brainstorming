@@ -318,12 +318,25 @@ export function DecisionDrawer() {
     const overId = over.id as string;
     const sourceZone = dragSourceZone.current;
 
+    // 判断鼠标在 over 元素的上半还是下半，决定插入前还是插入后
+    const overRect = over.rect;
+    const activeRect = active.rect.current.translated;
+    const isBefore = activeRect
+      ? activeRect.top + activeRect.height / 2 < overRect.top + overRect.height / 2
+      : false;
+
     if (overId === DROPPABLE_PENDING || pendingOrder.includes(overId)) {
       dragOverZone.current = 'pending';
       if (sourceZone === 'confirmed') {
         // 跨区：只更新预览位置，不修改真实 order state
         const overIndex = pendingOrder.indexOf(overId);
-        setInsertionPreview({ zone: 'pending', index: overIndex === -1 ? pendingOrder.length : overIndex });
+        let insertIndex: number;
+        if (overIndex === -1) {
+          insertIndex = pendingOrder.length; // 拖到区域容器，追加末尾
+        } else {
+          insertIndex = isBefore ? overIndex : overIndex + 1;
+        }
+        setInsertionPreview({ zone: 'pending', index: insertIndex });
       } else {
         setInsertionPreview(null);
         // 同区内移动：实时更新排序
@@ -341,7 +354,13 @@ export function DecisionDrawer() {
       if (sourceZone === 'pending') {
         // 跨区：只更新预览位置
         const overIndex = confirmedOrder.indexOf(overId);
-        setInsertionPreview({ zone: 'confirmed', index: overIndex === -1 ? confirmedOrder.length : overIndex });
+        let insertIndex: number;
+        if (overIndex === -1) {
+          insertIndex = confirmedOrder.length;
+        } else {
+          insertIndex = isBefore ? overIndex : overIndex + 1;
+        }
+        setInsertionPreview({ zone: 'confirmed', index: insertIndex });
       } else {
         setInsertionPreview(null);
         // 同区内移动：实时更新排序
