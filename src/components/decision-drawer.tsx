@@ -20,7 +20,10 @@ import {
   useDroppable,
   type DragStartEvent,
   type DragEndEvent,
+  type DragOverEvent,
+  pointerWithin,
   rectIntersection,
+  type CollisionDetection,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -167,6 +170,15 @@ export function DecisionDrawer() {
   });
 
   const [activeId, setActiveId] = useState<string | null>(null);
+  // 追踪拖拽过程中经过的区域，避免 dragEnd 时碰撞检测误判
+  const dragOverZone = useRef<'confirmed' | 'pending' | null>(null);
+
+  // 组合碰撞检测：先用指针位置（精准），找不到再用矩形面积兜底
+  const collisionDetection: CollisionDetection = useCallback((args) => {
+    const pointerCollisions = pointerWithin(args);
+    if (pointerCollisions.length > 0) return pointerCollisions;
+    return rectIntersection(args);
+  }, []);
 
   // 排序状态（存储 nodeId 数组）
   const [confirmedOrder, setConfirmedOrder] = useState<string[]>([]);
@@ -279,48 +291,65 @@ export function DecisionDrawer() {
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
+    dragOverZone.current = null;
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const { over } = event;
+    if (!over) return;
+    const overId = over.id as string;
+    if (overId === DROPPABLE_PENDING || pendingOrder.includes(overId)) {
+      dragOverZone.current = 'pending';
+    } else if (overId === DROPPABLE_CONFIRMED || confirmedOrder.includes(overId)) {
+      dragOverZone.current = 'confirmed';
+    }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveId(null);
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
     const activeId = active.id as string;
-    const overId = over.id as string;
+
+    // over 为 null 时，用 dragOverZone 兜底（快速拖拽时 over 可能丢失）
+    const overId = over ? (over.id as string) : null;
+    const zone = dragOverZone.current;
+    dragOverZone.current = null;
+
+    if (!overId && !zone) return;
+    if (overId && active.id === overId) return;
 
     const isActiveInConfirmed = confirmedOrder.includes(activeId);
     const isActiveInPending = pendingOrder.includes(activeId);
-    const isOverInConfirmed = confirmedOrder.includes(overId) || overId === DROPPABLE_CONFIRMED;
-    const isOverInPending = pendingOrder.includes(overId) || overId === DROPPABLE_PENDING;
+    const isOverInConfirmed = (overId && (confirmedOrder.includes(overId) || overId === DROPPABLE_CONFIRMED)) || zone === 'confirmed';
+    const isOverInPending = (overId && (pendingOrder.includes(overId) || overId === DROPPABLE_PENDING)) || zone === 'pending';
 
     // 跨区域拖拽
     if (isActiveInConfirmed && isOverInPending) {
-      // 从 confirmed 拖到 pending
       moveToCategory(activeId, 'pending');
       setConfirmedOrder(items => items.filter(id => id !== activeId));
       setPendingOrder(items => {
-        if (overId === DROPPABLE_PENDING) return [...items, activeId];
+        if (!overId || overId === DROPPABLE_PENDING) return [...items, activeId];
         const overIndex = items.indexOf(overId);
+        if (overIndex === -1) return [...items, activeId];
         return [...items.slice(0, overIndex + 1), activeId, ...items.slice(overIndex + 1)];
       });
     } else if (isActiveInPending && isOverInConfirmed) {
-      // 从 pending 拖到 confirmed
       moveToCategory(activeId, 'confirmed');
       setPendingOrder(items => items.filter(id => id !== activeId));
       setConfirmedOrder(items => {
-        if (overId === DROPPABLE_CONFIRMED) return [...items, activeId];
+        if (!overId || overId === DROPPABLE_CONFIRMED) return [...items, activeId];
         const overIndex = items.indexOf(overId);
+        if (overIndex === -1) return [...items, activeId];
         return [...items.slice(0, overIndex + 1), activeId, ...items.slice(overIndex + 1)];
       });
-    } else if (isActiveInConfirmed && isOverInConfirmed && overId !== DROPPABLE_CONFIRMED) {
+    } else if (overId && isActiveInConfirmed && confirmedOrder.includes(overId)) {
       // 在 confirmed 区内排序
       setConfirmedOrder((items) => {
         const oldIndex = items.indexOf(activeId);
         const newIndex = items.indexOf(overId);
         return arrayMove(items, oldIndex, newIndex);
       });
-    } else if (isActiveInPending && isOverInPending && overId !== DROPPABLE_PENDING) {
+    } else if (overId && isActiveInPending && pendingOrder.includes(overId)) {
       // 在 pending 区内排序
       setPendingOrder((items) => {
         const oldIndex = items.indexOf(activeId);
@@ -350,8 +379,9 @@ export function DecisionDrawer() {
       {rightDrawerOpen && (
         <ScrollArea className="h-[calc(100vh-92px)]">
           <DndContext
-            collisionDetection={rectIntersection}
+            collisionDetection={collisionDetection}
             onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
             <div className="p-3 space-y-1">
