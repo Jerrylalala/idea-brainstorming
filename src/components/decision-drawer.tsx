@@ -123,6 +123,16 @@ function DraggableItem({ id, title, summary, borderColor, onRemove }: {
   );
 }
 
+// 跨区拖拽插入位置预览占位符（纯视觉，不影响真实数据）
+function InsertionPlaceholder() {
+  return (
+    <div className="ml-6 my-1 h-7 rounded-md border border-dashed border-slate-300 bg-slate-50" />
+  );
+}
+
+// 插入预览数据结构
+type InsertionPreview = { zone: 'confirmed' | 'pending'; index: number } | null;
+
 // localStorage 键名
 const STORAGE_KEY_CONFIRMED = 'decision-drawer-confirmed-order';
 const STORAGE_KEY_PENDING = 'decision-drawer-pending-order';
@@ -170,9 +180,11 @@ export function DecisionDrawer() {
   });
 
   const [activeId, setActiveId] = useState<string | null>(null);
-  // 追踪拖拽过程中经过的区域，避免 dragEnd 时碰撞检测误判
+  // 跨区拖拽时的插入位置预览（不修改真实 order state，避免挤压其他 item）
+  const [insertionPreview, setInsertionPreview] = useState<InsertionPreview>(null);
+  // 追踪拖拽过程中经过的区域
   const dragOverZone = useRef<'confirmed' | 'pending' | null>(null);
-  // 记录拖拽开始时的原始区域，用于取消时恢复
+  // 记录拖拽开始时的原始区域
   const dragSourceZone = useRef<'confirmed' | 'pending' | null>(null);
 
   // 组合碰撞检测：先用指针位置（精准），找不到再用矩形面积兜底
@@ -294,89 +306,87 @@ export function DecisionDrawer() {
   const handleDragStart = (event: DragStartEvent) => {
     const id = event.active.id as string;
     setActiveId(id);
+    setInsertionPreview(null);
     dragOverZone.current = null;
     dragSourceZone.current = confirmedOrder.includes(id) ? 'confirmed' : 'pending';
   };
 
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
-    if (!over) return;
+    if (!over) { setInsertionPreview(null); return; }
     const activeId = active.id as string;
     const overId = over.id as string;
-
-    const isActiveInConfirmed = confirmedOrder.includes(activeId);
-    const isActiveInPending = pendingOrder.includes(activeId);
+    const sourceZone = dragSourceZone.current;
 
     if (overId === DROPPABLE_PENDING || pendingOrder.includes(overId)) {
       dragOverZone.current = 'pending';
-      if (isActiveInConfirmed && !pendingOrder.includes(activeId)) {
-        // 跨区进入 pending：临时插入，驱动占位阴影
-        setPendingOrder(items => {
-          const overIndex = items.indexOf(overId);
-          if (overIndex === -1) return [...items, activeId];
-          return [...items.slice(0, overIndex), activeId, ...items.slice(overIndex)];
-        });
-      } else if (isActiveInPending && pendingOrder.includes(overId)) {
-        // 在 pending 内移动：实时更新排序
-        setPendingOrder(items => {
-          const oldIndex = items.indexOf(activeId);
-          const newIndex = items.indexOf(overId);
-          if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return items;
-          return arrayMove(items, oldIndex, newIndex);
-        });
+      if (sourceZone === 'confirmed') {
+        // 跨区：只更新预览位置，不修改真实 order state
+        const overIndex = pendingOrder.indexOf(overId);
+        setInsertionPreview({ zone: 'pending', index: overIndex === -1 ? pendingOrder.length : overIndex });
+      } else {
+        setInsertionPreview(null);
+        // 同区内移动：实时更新排序
+        if (pendingOrder.includes(overId)) {
+          setPendingOrder(items => {
+            const oldIndex = items.indexOf(activeId);
+            const newIndex = items.indexOf(overId);
+            if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return items;
+            return arrayMove(items, oldIndex, newIndex);
+          });
+        }
       }
     } else if (overId === DROPPABLE_CONFIRMED || confirmedOrder.includes(overId)) {
       dragOverZone.current = 'confirmed';
-      if (isActiveInPending && !confirmedOrder.includes(activeId)) {
-        // 跨区进入 confirmed：临时插入，驱动占位阴影
-        setConfirmedOrder(items => {
-          const overIndex = items.indexOf(overId);
-          if (overIndex === -1) return [...items, activeId];
-          return [...items.slice(0, overIndex), activeId, ...items.slice(overIndex)];
-        });
-      } else if (isActiveInConfirmed && confirmedOrder.includes(overId)) {
-        // 在 confirmed 内移动：实时更新排序
-        setConfirmedOrder(items => {
-          const oldIndex = items.indexOf(activeId);
-          const newIndex = items.indexOf(overId);
-          if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return items;
-          return arrayMove(items, oldIndex, newIndex);
-        });
+      if (sourceZone === 'pending') {
+        // 跨区：只更新预览位置
+        const overIndex = confirmedOrder.indexOf(overId);
+        setInsertionPreview({ zone: 'confirmed', index: overIndex === -1 ? confirmedOrder.length : overIndex });
+      } else {
+        setInsertionPreview(null);
+        // 同区内移动：实时更新排序
+        if (confirmedOrder.includes(overId)) {
+          setConfirmedOrder(items => {
+            const oldIndex = items.indexOf(activeId);
+            const newIndex = items.indexOf(overId);
+            if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return items;
+            return arrayMove(items, oldIndex, newIndex);
+          });
+        }
       }
     }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveId(null);
-    const { active, over } = event;
-    const activeId = active.id as string;
+    const preview = insertionPreview;
+    setInsertionPreview(null);
     const sourceZone = dragSourceZone.current;
-    const zone = dragOverZone.current;
+    const zone = preview?.zone ?? dragOverZone.current;
     dragOverZone.current = null;
     dragSourceZone.current = null;
 
-    // 取消拖拽（over=null 或拖回原区）：把临时插入的 item 从目标区移除
-    if (!over) {
-      if (sourceZone === 'confirmed') {
-        setPendingOrder(items => items.filter(id => id !== activeId));
-      } else if (sourceZone === 'pending') {
-        setConfirmedOrder(items => items.filter(id => id !== activeId));
-      }
-      return;
-    }
+    const { active, over } = event;
+    if (!over && !preview) return;
 
-    const isCrossZone = sourceZone !== zone;
+    const activeId = active.id as string;
 
-    if (isCrossZone && sourceZone === 'confirmed' && zone === 'pending') {
-      // confirmed → pending：order 已在 dragOver 中更新，只需调用 moveToCategory + 从源区移除
+    if (sourceZone === 'confirmed' && zone === 'pending') {
       moveToCategory(activeId, 'pending');
       setConfirmedOrder(items => items.filter(id => id !== activeId));
-    } else if (isCrossZone && sourceZone === 'pending' && zone === 'confirmed') {
-      // pending → confirmed
+      setPendingOrder(items => {
+        const insertAt = preview?.index ?? items.length;
+        return [...items.slice(0, insertAt), activeId, ...items.slice(insertAt)];
+      });
+    } else if (sourceZone === 'pending' && zone === 'confirmed') {
       moveToCategory(activeId, 'confirmed');
       setPendingOrder(items => items.filter(id => id !== activeId));
+      setConfirmedOrder(items => {
+        const insertAt = preview?.index ?? items.length;
+        return [...items.slice(0, insertAt), activeId, ...items.slice(insertAt)];
+      });
     }
-    // 同区内排序：dragOver 已实时处理，无需额外操作
+    // 同区内排序：handleDragOver 的 arrayMove 已实时处理
   };
 
   return (
@@ -417,18 +427,26 @@ export function DecisionDrawer() {
                   <SortableContext items={confirmedOrder} strategy={verticalListSortingStrategy}>
                     <DroppableZone id={DROPPABLE_CONFIRMED} isEmpty={confirmedItems.length === 0}>
                       {confirmedItems.length === 0 ? (
-                        <p className="ml-6 py-1.5 pl-3 text-xs text-slate-400">暂无已确认项，可从待定项拖入</p>
+                        <>
+                          {insertionPreview?.zone === 'confirmed' && <InsertionPlaceholder />}
+                          <p className="ml-6 py-1.5 pl-3 text-xs text-slate-400">暂无已确认项，可从待定项拖入</p>
+                        </>
                       ) : (
-                        confirmedItems.map((item) => (
-                          <DraggableItem
-                            key={item.id}
-                            id={item.id}
-                            title={item.title}
-                            summary={item.summary}
-                            borderColor="border-emerald-300"
-                            onRemove={() => removeFromPanel(item.id)}
-                          />
-                        ))
+                        <>
+                          {confirmedItems.map((item, i) => (
+                            <div key={item.id}>
+                              {insertionPreview?.zone === 'confirmed' && insertionPreview.index === i && <InsertionPlaceholder />}
+                              <DraggableItem
+                                id={item.id}
+                                title={item.title}
+                                summary={item.summary}
+                                borderColor="border-emerald-300"
+                                onRemove={() => removeFromPanel(item.id)}
+                              />
+                            </div>
+                          ))}
+                          {insertionPreview?.zone === 'confirmed' && insertionPreview.index >= confirmedItems.length && <InsertionPlaceholder />}
+                        </>
                       )}
                     </DroppableZone>
                   </SortableContext>
@@ -447,18 +465,26 @@ export function DecisionDrawer() {
                   <SortableContext items={pendingOrder} strategy={verticalListSortingStrategy}>
                     <DroppableZone id={DROPPABLE_PENDING} isEmpty={pendingItems.length === 0}>
                       {pendingItems.length === 0 ? (
-                        <p className="ml-6 py-1.5 pl-3 text-xs text-slate-400">暂无待定项，可从已确认拖入</p>
+                        <>
+                          {insertionPreview?.zone === 'pending' && <InsertionPlaceholder />}
+                          <p className="ml-6 py-1.5 pl-3 text-xs text-slate-400">暂无待定项，可从已确认拖入</p>
+                        </>
                       ) : (
-                        pendingItems.map((item) => (
-                          <DraggableItem
-                            key={item.id}
-                            id={item.id}
-                            title={item.title}
-                            summary={item.summary}
-                            borderColor="border-amber-300"
-                            onRemove={() => removeFromPanel(item.id)}
-                          />
-                        ))
+                        <>
+                          {pendingItems.map((item, i) => (
+                            <div key={item.id}>
+                              {insertionPreview?.zone === 'pending' && insertionPreview.index === i && <InsertionPlaceholder />}
+                              <DraggableItem
+                                id={item.id}
+                                title={item.title}
+                                summary={item.summary}
+                                borderColor="border-amber-300"
+                                onRemove={() => removeFromPanel(item.id)}
+                              />
+                            </div>
+                          ))}
+                          {insertionPreview?.zone === 'pending' && insertionPreview.index >= pendingItems.length && <InsertionPlaceholder />}
+                        </>
                       )}
                     </DroppableZone>
                   </SortableContext>
