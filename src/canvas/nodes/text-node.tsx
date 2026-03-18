@@ -11,7 +11,6 @@ export function TextNode({ id, data, selected }: NodeProps<TextCanvasNode>) {
   const containerRef = useRef<HTMLDivElement>(null)
   const updateTextContent = useCanvasStore((s) => s.updateTextContent)
   const addChatFromQuote = useCanvasStore((s) => s.addChatFromQuote)
-  const deleteNode = useCanvasStore((s) => s.deleteNode)
   const reactFlow = useReactFlow()
 
   const handleDoubleClick = useCallback(() => {
@@ -70,7 +69,7 @@ export function TextNode({ id, data, selected }: NodeProps<TextCanvasNode>) {
       className={cn(
         'relative min-w-[200px] max-w-[480px] rounded-xl border bg-white shadow-sm',
         'transition-shadow duration-150',
-        selected ? 'border-violet-400 shadow-md ring-2 ring-violet-200' : 'border-slate-200',
+        selected ? 'border-violet-300 shadow-md' : 'border-slate-200',
       )}
       onDoubleClick={handleDoubleClick}
       onMouseUp={handleMouseUp}
@@ -78,29 +77,19 @@ export function TextNode({ id, data, selected }: NodeProps<TextCanvasNode>) {
       {/* 顶部装饰条 */}
       <div className="h-1.5 rounded-t-xl bg-gradient-to-r from-violet-400 to-purple-400" />
 
-      {/* 删除按钮 */}
-      {selected && (
-        <button
-          className="absolute -top-2 -right-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-white text-xs shadow hover:bg-rose-600"
-          onClick={(e) => { e.stopPropagation(); deleteNode(id) }}
-        >
-          ×
-        </button>
-      )}
-
       {/* 内容区 */}
       <div className="p-4">
         {editing ? (
           <textarea
             ref={textRef}
-            className="w-full min-h-[60px] resize-none border-none bg-transparent text-sm text-slate-700 outline-none"
+            className="nodrag nokey w-full min-h-[60px] resize-none border-none bg-transparent text-sm text-slate-700 outline-none"
             value={data.content}
             onChange={(e) => updateTextContent(id, e.target.value)}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
           />
         ) : (
-          <div className="min-h-[40px] whitespace-pre-wrap text-sm text-slate-700 select-text">
+          <div className="nowheel min-h-[40px] whitespace-pre-wrap text-sm text-slate-700 select-text">
             {data.content || '双击编辑...'}
           </div>
         )}

@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 const RELATION_STYLES = {
   quote: { stroke: '#8b5cf6', label: '引用', dash: '' },
   branch: { stroke: '#06b6d4', label: '分支', dash: '5,5' },
-  derived: { stroke: '#10b981', label: '派生', dash: '8,4' },
+  derived: { stroke: '#10b981', label: '', dash: '' },
 }
 
 export function ReferenceEdge({
@@ -41,29 +41,32 @@ export function ReferenceEdge({
         path={edgePath}
         style={{
           stroke: style.stroke,
-          strokeWidth: selected ? 3 : 2,
+          strokeWidth: selected ? 2.5 : 1.5,
           strokeDasharray: style.dash || undefined,
+          opacity: selected ? 1 : 0.6,
           cursor: 'pointer',
         }}
         interactionWidth={20}
       />
-      <EdgeLabelRenderer>
-        <div
-          className={cn(
-            'absolute cursor-pointer rounded-full border px-2 py-0.5 text-[10px] font-medium',
-            'bg-white shadow-sm transition-all hover:shadow-md hover:scale-110',
-          )}
-          style={{
-            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-            borderColor: style.stroke,
-            color: style.stroke,
-            pointerEvents: 'all',
-          }}
-          onClick={handleClick}
-        >
-          {style.label}
-        </div>
-      </EdgeLabelRenderer>
+      {style.label && (
+        <EdgeLabelRenderer>
+          <div
+            className={cn(
+              'absolute cursor-pointer rounded-full border px-2 py-0.5 text-[10px] font-medium',
+              'bg-white shadow-sm transition-all hover:shadow-md hover:scale-110',
+            )}
+            style={{
+              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+              borderColor: style.stroke,
+              color: style.stroke,
+              pointerEvents: 'all',
+            }}
+            onClick={handleClick}
+          >
+            {style.label}
+          </div>
+        </EdgeLabelRenderer>
+      )}
     </>
   )
 }
