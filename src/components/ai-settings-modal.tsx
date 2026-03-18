@@ -28,15 +28,10 @@ export function AISettingsModal() {
   function handleProviderChange(p: ProviderPreset) {
     setProvider(p)
     const existing = configs[p]
-    // 加载该供应商已保存的 apiKey（切换供应商不清空已有配置）
     setApiKey(existing?.apiKey ?? '')
-    if (p !== 'custom') {
-      setBaseURL(PROVIDER_PRESETS[p].baseURL)
-      setModel(existing?.model ?? PROVIDER_PRESETS[p].model)
-    } else {
-      setBaseURL(existing?.baseURL ?? '')
-      setModel(existing?.model ?? '')
-    }
+    // 优先用已保存的 baseURL，否则用 preset 默认值
+    setBaseURL(existing?.baseURL ?? PROVIDER_PRESETS[p].baseURL)
+    setModel(existing?.model ?? PROVIDER_PRESETS[p].model)
     setTestStatus('idle')
     setTestMsg('')
   }
@@ -45,20 +40,33 @@ export function AISettingsModal() {
     if (!apiKey) return
     setTestStatus('loading')
     setTestMsg('')
-    const effectiveURL = isCustom ? baseURL : PROVIDER_PRESETS[provider].baseURL
-    const gen = buildClient({ provider, baseURL: effectiveURL, apiKey, model }).streamChat({
+
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000)
+
+    const gen = buildClient({ provider, baseURL, apiKey, model }).streamChat({
       messages: [{ id: 'test', role: 'user', text: 'Hi', createdAt: Date.now() }],
       sourceRefs: [],
     })
     try {
-      const first = await gen.next()
-      if (first.value?.type === 'error') throw new Error(first.value.error)
+      const first = await Promise.race([
+        gen.next(),
+        new Promise<never>((_, reject) =>
+          controller.signal.addEventListener('abort', () =>
+            reject(new Error('连接超时，请检查网络或 URL'))
+          )
+        ),
+      ])
+      if ((first as Awaited<ReturnType<typeof gen.next>>).value?.type === 'error') {
+        throw new Error((first as Awaited<ReturnType<typeof gen.next>>).value?.error)
+      }
       setTestStatus('ok')
       setTestMsg('连接成功 ✓')
     } catch (e) {
       setTestStatus('error')
       setTestMsg(e instanceof Error ? e.message : '连接失败')
     } finally {
+      clearTimeout(timeout)
       await gen.return(undefined)
     }
   }
@@ -67,7 +75,7 @@ export function AISettingsModal() {
     const cfg: ProviderConfig = {
       apiKey,
       model,
-      ...(isCustom ? { baseURL } : {}),
+      baseURL,  // 始终保存，toAIConfig 会优先使用此值
     }
     updateProviderConfig(provider, cfg)
     setSettingsOpen(false)
@@ -98,20 +106,17 @@ export function AISettingsModal() {
             </select>
           </div>
 
-          {/* Base URL — 仅 custom 可编辑 */}
+          {/* Base URL — 所有 provider 均可编辑 */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">Base URL</label>
             <input
               type="text"
-              value={isCustom ? baseURL : PROVIDER_PRESETS[provider].baseURL}
-              onChange={(e) => isCustom && setBaseURL(e.target.value)}
-              readOnly={!isCustom}
+              value={baseURL}
+              onChange={(e) => setBaseURL(e.target.value)}
               placeholder="https://api.example.com/v1"
-              className={`h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300 ${isCustom ? 'bg-white' : 'bg-slate-50 text-slate-500 cursor-default'}`}
+              className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
             />
-            {!isCustom && (
-              <p className="mt-1 text-xs text-slate-400">预设 Provider 的地址已锁定，如需自定义请选择「自定义中转」</p>
-            )}
+            <p className="mt-1 text-xs text-slate-400">默认值来自预设，可修改为官网实际地址</p>
           </div>
 
           {/* API Key */}

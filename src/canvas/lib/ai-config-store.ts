@@ -11,7 +11,7 @@ export type ProviderPreset = 'deepseek' | 'deepseek-anthropic' | 'kimi' | 'qwen'
 export interface ProviderConfig {
   apiKey: string
   model: string
-  baseURL?: string  // 仅 custom provider 使用
+  baseURL?: string  // 用户自定义 baseURL，覆盖 preset 默认值（所有 provider 均支持）
 }
 
 // Legacy type，buildClient 函数使用
