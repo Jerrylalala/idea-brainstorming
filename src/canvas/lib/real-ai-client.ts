@@ -1,47 +1,38 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { createAnthropic } from '@ai-sdk/anthropic'
+import { streamText, generateText, type LanguageModel } from 'ai'
 import type { AIClient, ChatRequest, ChatChunk, DirectionRequest, Direction } from '../types'
 import { buildDirectionPrompt, parseDirectionsJSON } from './prompt-builder'
 
-export class AnthropicAIClient implements AIClient {
-  private client: Anthropic
-  private model: string
+// 浏览器直连 Anthropic 需要此 header（官方推荐方案，替代 dangerouslyAllowBrowser）
+const BROWSER_HEADER = { 'anthropic-dangerous-direct-browser-access': 'true' }
 
-  constructor(apiKey: string, model: string, baseURL?: string) {
-    this.model = model
-    this.client = new Anthropic({
+export class AnthropicAIClient implements AIClient {
+  private model: LanguageModel
+
+  constructor(apiKey: string, modelId: string, baseURL?: string) {
+    const provider = createAnthropic({
       apiKey,
       ...(baseURL ? { baseURL } : {}),
-      // 已知取舍：此应用为本地个人工具，无后端代理，需直接从浏览器调用
-      dangerouslyAllowBrowser: true,
+      headers: BROWSER_HEADER,
     })
+    this.model = provider(modelId)
   }
 
   async *streamChat(input: ChatRequest): AsyncGenerator<ChatChunk> {
     const systemMsg = input.messages.find(m => m.role === 'system')
-    const userMessages = input.messages
+    const messages = input.messages
       .filter(m => m.role !== 'system')
-      .map(m => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.text,
-      }))
+      .map(m => ({ role: m.role as 'user' | 'assistant', content: m.text }))
 
     try {
-      const stream = this.client.messages.stream({
+      const result = streamText({
         model: this.model,
-        max_tokens: 2048,
         system: systemMsg?.text,
-        messages: userMessages,
+        messages,
       })
-
-      for await (const event of stream) {
-        if (
-          event.type === 'content_block_delta' &&
-          event.delta.type === 'text_delta'
-        ) {
-          yield { type: 'delta', text: event.delta.text }
-        }
+      for await (const delta of result.textStream) {
+        yield { type: 'delta', text: delta }
       }
-
       yield { type: 'done' }
     } catch (err) {
       yield { type: 'error', error: err instanceof Error ? err.message : '未知错误' }
@@ -49,17 +40,10 @@ export class AnthropicAIClient implements AIClient {
   }
 
   async generateDirections(input: DirectionRequest): Promise<Direction[]> {
-    const response = await this.client.messages.create({
+    const result = await generateText({
       model: this.model,
-      max_tokens: 1024,
       messages: [{ role: 'user', content: buildDirectionPrompt(input) }],
     })
-
-    const text = response.content
-      .filter(b => b.type === 'text')
-      .map(b => (b as { type: 'text'; text: string }).text)
-      .join('')
-
-    return parseDirectionsJSON(text)
+    return parseDirectionsJSON(result.text)
   }
 }
