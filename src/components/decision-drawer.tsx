@@ -1,10 +1,9 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import type { CanvasNode } from '@/canvas/types';
 import {
   CheckCircle2,
   Clock3,
   ChevronRight,
-  ChevronDown,
   PanelRightClose,
   PanelRightOpen,
   Rocket,
@@ -17,15 +16,11 @@ import { useCanvasStore } from '@/canvas/store/canvas-store';
 import type { DirectionCanvasNode } from '@/canvas/types';
 import {
   DndContext,
-  closestCenter,
   DragOverlay,
   useDroppable,
   type DragStartEvent,
   type DragEndEvent,
-  type DragOverEvent,
-  pointerWithin,
   rectIntersection,
-  type CollisionDetection,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -64,16 +59,17 @@ function DraggableItem({ id, title, summary, borderColor, onRemove }: {
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
+    willChange: 'transform' as const,
   };
 
-  // 延迟收起，避免鼠标微小移动导致闪烁
-  const handleEnter = () => {
+  // useCallback 包裹，避免每次渲染重建
+  const handleEnter = useCallback(() => {
     if (leaveTimer.current) { clearTimeout(leaveTimer.current); leaveTimer.current = null; }
     setHovered(true);
-  };
-  const handleLeave = () => {
+  }, []);
+  const handleLeave = useCallback(() => {
     leaveTimer.current = setTimeout(() => setHovered(false), 200);
-  };
+  }, []);
 
   useEffect(() => () => { if (leaveTimer.current) clearTimeout(leaveTimer.current); }, []);
 
@@ -109,22 +105,17 @@ function DraggableItem({ id, title, summary, borderColor, onRemove }: {
         </button>
       </div>
 
-      {/* 悬浮展开细节 - 带动画 */}
-      <AnimatePresence>
-        {hovered && summary && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: 'easeInOut' }}
-            className="overflow-hidden"
-          >
-            <div className="pl-8 pr-2 pb-2 text-[11px] text-slate-500 leading-relaxed">
-              {summary}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* 悬浮展开细节 - 纯 CSS grid 动画（GPU 友好，无 JS 逐帧计算） */}
+      <div
+        className="transition-[grid-template-rows] duration-200 ease-in-out"
+        style={{ display: 'grid', gridTemplateRows: hovered && summary ? '1fr' : '0fr' }}
+      >
+        <div className="overflow-hidden">
+          <div className="pl-8 pr-2 pb-2 text-[11px] text-slate-500 leading-relaxed">
+            {summary}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -133,10 +124,38 @@ function DraggableItem({ id, title, summary, borderColor, onRemove }: {
 const STORAGE_KEY_CONFIRMED = 'decision-drawer-confirmed-order';
 const STORAGE_KEY_PENDING = 'decision-drawer-pending-order';
 
+// 带缓存的选择器工厂：每个组件实例独立缓存，确保 getSnapshot 返回稳定引用
+// React 18 useSyncExternalStore 要求 getSnapshot 本身必须返回稳定引用，equality 函数不够
+type PanelNodeData = { id: string; status: string; title: string; summary?: string };
+function makePanelNodesSelector() {
+  let cache: PanelNodeData[] | null = null;
+  return (s: { nodes: CanvasNode[] }) => {
+    const next = (s.nodes as DirectionCanvasNode[])
+      .filter((n): n is DirectionCanvasNode => n.type === 'direction' && (n.data.status === 'confirmed' || n.data.status === 'pending'))
+      .map(n => ({ id: n.id, status: n.data.status as string, title: n.data.title, summary: n.data.summary }));
+    if (
+      cache !== null &&
+      cache.length === next.length &&
+      cache.every((item, i) =>
+        item.id === next[i].id &&
+        item.status === next[i].status &&
+        item.title === next[i].title &&
+        item.summary === next[i].summary
+      )
+    ) {
+      return cache; // 返回同一引用，getSnapshot 稳定
+    }
+    cache = next;
+    return next;
+  };
+}
+
 // 右侧可收起决策抽屉
 export function DecisionDrawer() {
   const { rightDrawerOpen, toggleRightDrawer } = useUIStore();
-  const nodes = useCanvasStore((s) => s.nodes);
+  // 每个组件实例创建独立的缓存选择器，useRef 保证只创建一次
+  const panelSelector = useRef(makePanelNodesSelector()).current;
+  const directionNodes = useCanvasStore(panelSelector);
   const removeFromPanel = useCanvasStore((s) => s.removeFromPanel);
   const moveToCategory = useCanvasStore((s) => s.moveToCategory);
 
@@ -157,23 +176,23 @@ export function DecisionDrawer() {
     setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // 从 nodes 派生原始数据
+  // 从精确选择器派生数据（不再依赖整个 nodes 数组）
   const confirmedNodesMap = useMemo(
     () => new Map(
-      nodes
-        .filter(n => n.type === 'direction' && n.data.status === 'confirmed')
-        .map(n => [n.id, { id: n.id, title: (n as DirectionCanvasNode).data.title, summary: (n as DirectionCanvasNode).data.summary }])
+      directionNodes
+        .filter(n => n.status === 'confirmed')
+        .map(n => [n.id, { id: n.id, title: n.title, summary: n.summary }])
     ),
-    [nodes]
+    [directionNodes]
   );
 
   const pendingNodesMap = useMemo(
     () => new Map(
-      nodes
-        .filter(n => n.type === 'direction' && n.data.status === 'pending')
-        .map(n => [n.id, { id: n.id, title: (n as DirectionCanvasNode).data.title, summary: (n as DirectionCanvasNode).data.summary }])
+      directionNodes
+        .filter(n => n.status === 'pending')
+        .map(n => [n.id, { id: n.id, title: n.title, summary: n.summary }])
     ),
-    [nodes]
+    [directionNodes]
   );
 
   // 初始化排序：从 localStorage 读取，或使用默认顺序
@@ -312,7 +331,10 @@ export function DecisionDrawer() {
   };
 
   return (
-    <motion.div animate={{ width: rightDrawerOpen ? 320 : 44 }} className="border-l bg-white">
+    <div
+      className="border-l bg-white transition-[width] duration-300 ease-in-out overflow-hidden"
+      style={{ width: rightDrawerOpen ? 320 : 44 }}
+    >
       <div className="flex h-12 items-center justify-between border-b px-2.5">
         {rightDrawerOpen ? (
           <div className="px-1 text-sm font-medium text-slate-700">决策面板</div>
@@ -427,6 +449,6 @@ export function DecisionDrawer() {
           </DndContext>
         </ScrollArea>
       )}
-    </motion.div>
+    </div>
   );
 }
