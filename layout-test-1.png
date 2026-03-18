@@ -1,0 +1,204 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - button [ref=e6] [cursor=pointer]:
+        - img [ref=e7]
+      - img [ref=e10]
+      - img [ref=e12]
+      - img [ref=e14]
+      - button "M My Workspace" [ref=e16] [cursor=pointer]:
+        - generic [ref=e17]: M
+        - generic [ref=e18]: My Workspace
+        - img [ref=e19]
+    - generic [ref=e21]:
+      - img [ref=e22]
+      - img [ref=e23]
+  - generic [ref=e25]:
+    - complementary [ref=e26]:
+      - generic:
+        - button "New Session" [ref=e29] [cursor=pointer]:
+          - img
+          - text: New Session
+        - generic [ref=e33]:
+          - generic [ref=e34]:
+            - button "All Sessions" [ref=e35] [cursor=pointer]:
+              - img [ref=e36]
+              - generic [ref=e38]: All Sessions
+            - generic [ref=e39]:
+              - button "Backlog" [ref=e40] [cursor=pointer]:
+                - img [ref=e41]
+                - generic [ref=e43]: Backlog
+              - button "Todo" [ref=e44] [cursor=pointer]:
+                - img [ref=e45]
+                - generic [ref=e47]: Todo
+              - button "Needs Review" [ref=e48] [cursor=pointer]:
+                - img [ref=e49]
+                - generic [ref=e51]: Needs Review
+              - button "Done" [ref=e52] [cursor=pointer]:
+                - img [ref=e53]
+                - generic [ref=e56]: Done
+              - button "Archived" [ref=e57] [cursor=pointer]:
+                - img [ref=e58]
+                - generic [ref=e61]: Archived
+          - button "Labels" [ref=e63] [cursor=pointer]:
+            - img [ref=e64]
+            - generic [ref=e66]: Labels
+          - button "Settings" [ref=e68] [cursor=pointer]:
+            - img [ref=e69]
+            - generic [ref=e72]: Settings
+    - generic [ref=e73]:
+      - generic [ref=e74]:
+        - generic [ref=e75]: All Sessions
+        - img [ref=e76]
+      - generic [ref=e82]:
+        - generic [ref=e83]:
+          - generic [ref=e84]: TODAY
+          - button "New chat 7m" [ref=e86] [cursor=pointer]:
+            - generic [ref=e88]:
+              - img [ref=e89]
+              - generic [ref=e91]: New chat
+            - generic [ref=e92]: 7m
+        - generic [ref=e93]:
+          - generic [ref=e94]: YESTERDAY
+          - generic [ref=e95]:
+            - button "你好，你是当前是什么模型？ 13h" [ref=e96] [cursor=pointer]:
+              - generic [ref=e97]:
+                - img [ref=e98]
+                - generic [ref=e100]: 你好，你是当前是什么模型？
+              - generic [ref=e101]: 13h
+            - button "你当前我想做一个设计营销方案 13h" [ref=e102] [cursor=pointer]:
+              - generic [ref=e103]:
+                - img [ref=e104]
+                - generic [ref=e106]: 你当前我想做一个设计营销方案
+              - generic [ref=e107]: 13h
+            - button "你好，你是当前是什么模型？ 13h" [ref=e108] [cursor=pointer]:
+              - generic [ref=e109]:
+                - img [ref=e110]
+                - generic [ref=e112]: 你好，你是当前是什么模型？
+              - generic [ref=e113]: 13h
+            - button "AI 模型身份 13h" [ref=e114] [cursor=pointer]:
+              - generic [ref=e115]:
+                - img [ref=e116]
+                - generic [ref=e118]: AI 模型身份
+              - generic [ref=e119]: 13h
+    - application [ref=e127]:
+      - generic [ref=e129]:
+        - generic:
+          - generic:
+            - img:
+              - group "Edge from node-1773755587254-1 to node-1773755588426-2" [ref=e192] [cursor=pointer]
+            - img:
+              - group "Edge from node-1773755587254-1 to node-1773755588426-3" [ref=e195] [cursor=pointer]
+            - img:
+              - group "Edge from node-1773755587254-1 to node-1773755588426-4" [ref=e198] [cursor=pointer]
+            - img:
+              - group "Edge from node-1773755587254-1 to node-1773755588426-5" [ref=e201] [cursor=pointer]
+            - img:
+              - group "Edge from node-1773755587254-1 to node-1773755588426-6" [ref=e204] [cursor=pointer]
+            - img:
+              - group "Edge from node-1773755587254-1 to node-1773755588426-7" [ref=e207] [cursor=pointer]
+          - generic:
+            - group [ref=e185]:
+              - generic [ref=e187]:
+                - img [ref=e210]
+                - paragraph [ref=e190]: 开发一款营销软件
+            - group [ref=e212]:
+              - generic [ref=e217]:
+                - generic [ref=e218]: 桌面软件方案
+                - generic [ref=e219]: 开发 Windows/Mac 原生应用，提供离线能力和系统集
+            - group [ref=e231]:
+              - generic [ref=e236]:
+                - generic [ref=e237]: Web 应用方案
+                - generic [ref=e238]: 基于浏览器的 SaaS 服务，无需安装，跨平台访问
+                - generic [ref=e239]:
+                  - button "展开子方向" [ref=e240] [cursor=pointer]:
+                    - img [ref=e241]
+                  - button "确认选型" [ref=e243] [cursor=pointer]:
+                    - img [ref=e244]
+                  - button "标记待定" [ref=e246] [cursor=pointer]:
+                    - img [ref=e247]
+            - group [ref=e250]:
+              - generic [ref=e255]:
+                - generic [ref=e256]: 移动端优先
+                - generic [ref=e257]: 从 iOS/Android App 切入，抓住移动办公场景
+                - generic [ref=e258]:
+                  - button "展开子方向" [ref=e259] [cursor=pointer]:
+                    - img [ref=e260]
+                  - button "确认选型" [ref=e262] [cursor=pointer]:
+                    - img [ref=e263]
+                  - button "标记待定" [ref=e265] [cursor=pointer]:
+                    - img [ref=e266]
+            - group [ref=e269]:
+              - generic [ref=e274]:
+                - generic [ref=e275]: 浏览器插件
+                - generic [ref=e276]: 作为 Chrome/Edge 扩展，嵌入用户现有工作流
+                - generic [ref=e277]:
+                  - button "展开子方向" [ref=e278] [cursor=pointer]:
+                    - img [ref=e279]
+                  - button "确认选型" [ref=e281] [cursor=pointer]:
+                    - img [ref=e282]
+                  - button "标记待定" [ref=e284] [cursor=pointer]:
+                    - img [ref=e285]
+            - group [ref=e288]:
+              - generic [ref=e293]:
+                - generic [ref=e294]: CLI 工具
+                - generic [ref=e295]: 命令行工具，面向开发者和高级用户
+                - generic [ref=e296]:
+                  - button "展开子方向" [ref=e297] [cursor=pointer]:
+                    - img [ref=e298]
+                  - button "确认选型" [ref=e300] [cursor=pointer]:
+                    - img [ref=e301]
+                  - button "标记待定" [ref=e303] [cursor=pointer]:
+                    - img [ref=e304]
+            - group [ref=e307]:
+              - generic [ref=e312]:
+                - generic [ref=e313]: 混合方案
+                - generic [ref=e314]: Web 主体 + 桌面客户端增强，兼顾便捷性和性能
+                - generic [ref=e315]:
+                  - button "展开子方向" [ref=e316] [cursor=pointer]:
+                    - img [ref=e317]
+                  - button "确认选型" [ref=e319] [cursor=pointer]:
+                    - img [ref=e320]
+                  - button "标记待定" [ref=e322] [cursor=pointer]:
+                    - img [ref=e323]
+      - img
+      - generic [ref=e130]:
+        - button "+ 文本" [ref=e131] [cursor=pointer]:
+          - generic [ref=e132]: +
+          - text: 文本
+        - button "适应视口" [ref=e134] [cursor=pointer]
+      - generic [ref=e135]: 79%
+    - generic [ref=e137]:
+      - generic [ref=e138]:
+        - generic [ref=e139]: 决策面板
+        - button [ref=e140] [cursor=pointer]:
+          - img [ref=e141]
+      - generic [ref=e146]:
+        - generic [ref=e147]:
+          - generic [ref=e148]:
+            - button "已确认选型 1" [ref=e326] [cursor=pointer]:
+              - img [ref=e150]
+              - img [ref=e152]
+              - generic [ref=e155]: 已确认选型
+              - generic [ref=e156]: "1"
+            - button "桌面软件方案" [ref=e328]:
+              - button [ref=e329] [cursor=pointer]:
+                - img [ref=e330]
+              - generic [ref=e332]: 桌面软件方案
+              - button [ref=e333] [cursor=pointer]:
+                - img [ref=e334]
+          - generic [ref=e158]:
+            - button "待定项 0" [ref=e159] [cursor=pointer]:
+              - img [ref=e160]
+              - img [ref=e162]
+              - generic [ref=e165]: 待定项
+              - generic [ref=e166]: "0"
+            - paragraph [ref=e167]: 暂无待定项
+          - generic [ref=e168]:
+            - button "下一步计划 1" [ref=e337] [cursor=pointer]:
+              - img [ref=e170]
+              - img [ref=e172]
+              - generic [ref=e177]: 下一步计划
+              - generic [ref=e178]: "1"
+            - generic [ref=e338]: "深入探索: 桌面软件方案"
+        - status [ref=e181]

@@ -4,16 +4,18 @@ import {
   type NodeChange, type EdgeChange,
 } from '@xyflow/react'
 import type {
-  CanvasNode, CanvasEdge, ChatCanvasNode,
+  CanvasNode, CanvasEdge, ChatCanvasNode, DirectionCanvasNode, DirectionNodeData,
   ChatMessage, SourceRef,
 } from '../types'
-import { createTextNode, createChatNode, createEdge } from '../lib/node-factory'
+import { createTextNode, createChatNode, createEdge, createDirectionNode, createIdeaNode } from '../lib/node-factory'
 import { aiClient } from '../lib/ai-client'
 import { buildSystemPrompt, buildMessages } from '../lib/prompt-builder'
+import { setPendingFocusNodes } from '../hooks/use-auto-layout'
 
 interface CanvasState {
   nodes: CanvasNode[]
   edges: CanvasEdge[]
+  lastDeleted: { nodes: CanvasNode[]; edges: CanvasEdge[] } | null
 
   // ReactFlow 回调
   onNodesChange: (changes: NodeChange<CanvasNode>[]) => void
@@ -30,16 +32,58 @@ interface CanvasState {
   sendMessage: (nodeId: string) => void
   updateTextContent: (nodeId: string, content: string) => void
   deleteNode: (nodeId: string) => void
+  undoDelete: () => void
+
+  // 方向树操作
+  searchIdea: (idea: string) => Promise<void>
+  startExpanding: (nodeId: string) => void
+  cancelExpanding: (nodeId: string) => void
+  updateOpinionDraft: (nodeId: string, draft: string) => void
+  submitOpinion: (nodeId: string) => Promise<void>
+  confirmDirection: (nodeId: string) => void
+  pendingDirection: (nodeId: string) => void
+
+  // 面板数据（派生状态）
+  confirmedDirections: () => DirectionNodeData[]
+  pendingDirections: () => DirectionNodeData[]
+
+  // 面板操作
+  removeFromPanel: (nodeId: string) => void
+  moveToCategory: (nodeId: string, newStatus: 'confirmed' | 'pending' | 'idle') => void
+
+  // 布局操作
+  layoutVersion: number
+  layoutNodes: () => void
+
+  // Session 快照操作
+  loadSnapshot: (snapshot: { nodes: CanvasNode[]; edges: CanvasEdge[] }) => void
+  clearCanvas: () => void
 }
 
-export const useCanvasStore = create<CanvasState>((set, get) => ({
-  nodes: [
-    createTextNode({ x: 100, y: 200 }, '在这里写下你的想法...\n\n双击编辑，从右侧圆点拖出连线创建对话。'),
-  ],
+export const useCanvasStore = create<CanvasState>((set, get) => {
+  let undoTimer: ReturnType<typeof setTimeout> | null = null
+  let currentSearchVersion = 0  // 版本号，用于取消过期的搜索请求
+
+  return {
+  nodes: [],  // 初始为空，等待用户搜索
   edges: [],
+  lastDeleted: null,
+  layoutVersion: 0,
 
   onNodesChange: (changes) => {
-    set({ nodes: applyNodeChanges(changes, get().nodes) as CanvasNode[] })
+    const removes: NodeChange<CanvasNode>[] = []
+    const others: NodeChange<CanvasNode>[] = []
+    for (const c of changes) {
+      if (c.type === 'remove') removes.push(c)
+      else others.push(c)
+    }
+
+    if (others.length > 0) {
+      set({ nodes: applyNodeChanges(others, get().nodes) as CanvasNode[] })
+    }
+
+    // Delete 键触发的 remove 变更走自定义删除逻辑（级联 + 设置 lastDeleted）
+    removes.forEach(c => get().deleteNode((c as { id: string }).id))
   },
 
   onEdgesChange: (changes) => {
@@ -170,31 +214,45 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         sourceRefs: currentNode.data.sourceRefs,
       })
 
+      // 80ms 批量缓冲，减少渲染次数
+      let buffer = ''
+      let flushTimer: ReturnType<typeof setTimeout> | null = null
+
+      const flush = () => {
+        fullText += buffer
+        buffer = ''
+        flushTimer = null
+
+        const assistantMsg: ChatMessage = {
+          id: assistantMsgId,
+          role: 'assistant',
+          text: fullText,
+          createdAt: Date.now(),
+        }
+
+        set((s) => ({
+          nodes: s.nodes.map((n) => {
+            if (n.id !== nodeId || n.type !== 'chat') return n
+            const chatData = n.data as ChatCanvasNode['data']
+            const msgs = chatData.messages.filter((m) => m.id !== assistantMsgId)
+            return {
+              ...n,
+              data: { ...chatData, messages: [...msgs, assistantMsg] },
+            }
+          }) as CanvasNode[],
+        }))
+      }
+
       for await (const chunk of stream) {
         if (chunk.type === 'delta' && chunk.text) {
-          fullText += chunk.text
-
-          const assistantMsg: ChatMessage = {
-            id: assistantMsgId,
-            role: 'assistant',
-            text: fullText,
-            createdAt: Date.now(),
+          buffer += chunk.text
+          if (!flushTimer) {
+            flushTimer = setTimeout(flush, 80)
           }
-
-          set((s) => ({
-            nodes: s.nodes.map((n) => {
-              if (n.id !== nodeId || n.type !== 'chat') return n
-              const chatData = n.data as ChatCanvasNode['data']
-              const msgs = chatData.messages.filter((m) => m.id !== assistantMsgId)
-              return {
-                ...n,
-                data: { ...chatData, messages: [...msgs, assistantMsg] },
-              }
-            }) as CanvasNode[],
-          }))
         }
 
         if (chunk.type === 'error') {
+          if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
           set((s) => ({
             nodes: s.nodes.map((n) =>
               n.id === nodeId && n.type === 'chat'
@@ -205,6 +263,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           return
         }
       }
+
+      // 最后一次 flush
+      if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
+      if (buffer) flush()
 
       // 流完成
       set((s) => ({
@@ -236,9 +298,297 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   deleteNode: (nodeId) => {
+    const { nodes, edges } = get()
+
+    // 递归收集所有后代节点 ID（direction 节点通过 parentNodeId 关联）
+    const collectDescendants = (id: string, collected: Set<string>) => {
+      collected.add(id)
+      nodes
+        .filter(n => n.type === 'direction' && (n as DirectionCanvasNode).data.parentNodeId === id)
+        .forEach(child => collectDescendants(child.id, collected))
+    }
+
+    const toDelete = new Set<string>()
+    collectDescendants(nodeId, toDelete)
+
+    const deletedNodes = nodes.filter(n => toDelete.has(n.id))
+    const deletedEdges = edges.filter(e => toDelete.has(e.source) || toDelete.has(e.target))
+
+    // 保存快照用于撤销（包含整棵子树）
+    set({
+      lastDeleted: { nodes: deletedNodes, edges: deletedEdges },
+      nodes: nodes.filter(n => !toDelete.has(n.id)),
+      edges: edges.filter(e => !toDelete.has(e.source) && !toDelete.has(e.target)),
+    })
+
+    // 5 秒后自动清除快照
+    if (undoTimer) clearTimeout(undoTimer)
+    undoTimer = setTimeout(() => {
+      set({ lastDeleted: null })
+      undoTimer = null
+    }, 5000)
+  },
+
+  undoDelete: () => {
+    const { lastDeleted } = get()
+    if (!lastDeleted) return
+    if (undoTimer) { clearTimeout(undoTimer); undoTimer = null }
     set((s) => ({
-      nodes: s.nodes.filter((n) => n.id !== nodeId),
-      edges: s.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
+      nodes: [...s.nodes, ...lastDeleted.nodes],
+      edges: [...s.edges, ...lastDeleted.edges],
+      lastDeleted: null,
     }))
   },
-}))
+
+  // === 方向树操作 ===
+
+  searchIdea: async (idea) => {
+    const myVersion = ++currentSearchVersion
+
+    // 1. 清除现有 direction/idea 节点（保留 text/chat）
+    set((s) => ({
+      nodes: s.nodes.filter(n => n.type !== 'direction' && n.type !== 'idea'),
+      edges: s.edges.filter(e => {
+        const sourceNode = s.nodes.find(n => n.id === e.source)
+        const targetNode = s.nodes.find(n => n.id === e.target)
+        return sourceNode?.type !== 'direction' && sourceNode?.type !== 'idea' &&
+               targetNode?.type !== 'direction' && targetNode?.type !== 'idea'
+      }),
+    }))
+
+    // 2. 在画布左侧创建 IdeaNode
+    const ideaNode = createIdeaNode({ x: 100, y: 300 }, idea)
+    set((s) => ({ nodes: [...s.nodes, ideaNode] }))
+
+    // 3. 设置生成状态
+    set((s) => ({
+      nodes: s.nodes.map(n =>
+        n.id === ideaNode.id ? { ...n, data: { ...n.data, status: 'generating' as const } } : n
+      ) as CanvasNode[],
+    }))
+
+    // 4. 调用 AI 生成方向
+    try {
+      const directions = await aiClient.generateDirections({ idea })
+
+      // 新搜索已发起，丢弃本次结果
+      if (myVersion !== currentSearchVersion) return
+
+      // 5. 创建 DirectionNode 数组（初始位置在父节点右侧，避免飞入动画）
+      const parentPos = ideaNode.position || { x: 100, y: 300 }
+      const directionNodes = directions.map((dir, i) =>
+        createDirectionNode(
+          { x: parentPos.x + 570, y: parentPos.y + i * 60 },
+          dir.title, dir.summary, dir.keywords, 1, ideaNode.id
+        )
+      )
+
+      const newEdges = directionNodes.map(node =>
+        createEdge(ideaNode.id, node.id, 'derived')
+      )
+
+      // 7. 更新 store 并执行布局
+      set((s) => ({
+        nodes: [
+          ...s.nodes.map(n =>
+            n.id === ideaNode.id ? { ...n, data: { ...n.data, status: 'idle' as const } } : n
+          ),
+          ...directionNodes,
+        ] as CanvasNode[],
+        edges: [...s.edges, ...newEdges],
+      }))
+
+      // 8. 设置聚焦目标并执行自动布局
+      setPendingFocusNodes(ideaNode.id, directionNodes.map(n => n.id))
+      get().layoutNodes()
+    } catch (err) {
+      if (myVersion !== currentSearchVersion) return
+      set((s) => ({
+        nodes: s.nodes.map(n =>
+          n.id === ideaNode.id ? { ...n, data: { ...n.data, status: 'idle' as const } } : n
+        ) as CanvasNode[],
+      }))
+      throw err  // 让 SearchBar 感知错误，恢复搜索框
+    }
+  },
+
+  startExpanding: (nodeId) => {
+    set((s) => ({
+      nodes: s.nodes.map(n =>
+        n.id === nodeId && n.type === 'direction'
+          ? { ...n, data: { ...n.data, isExpanding: true } }
+          : n
+      ) as CanvasNode[],
+    }))
+  },
+
+  cancelExpanding: (nodeId) => {
+    set((s) => ({
+      nodes: s.nodes.map(n =>
+        n.id === nodeId && n.type === 'direction'
+          ? { ...n, data: { ...n.data, isExpanding: false, opinionDraft: '' } }
+          : n
+      ) as CanvasNode[],
+    }))
+  },
+
+  updateOpinionDraft: (nodeId, draft) => {
+    set((s) => ({
+      nodes: s.nodes.map(n =>
+        n.id === nodeId && n.type === 'direction'
+          ? { ...n, data: { ...n.data, opinionDraft: draft } }
+          : n
+      ) as CanvasNode[],
+    }))
+  },
+
+  submitOpinion: async (nodeId) => {
+    const node = get().nodes.find(n => n.id === nodeId && n.type === 'direction') as DirectionCanvasNode | undefined
+    if (!node || !node.data.opinionDraft.trim()) return
+
+    // 1. 设置节点 status: 'loading'
+    set((s) => ({
+      nodes: s.nodes.map(n =>
+        n.id === nodeId && n.type === 'direction'
+          ? { ...n, data: { ...n.data, status: 'loading' as const, isExpanding: false } }
+          : n
+      ) as CanvasNode[],
+    }))
+
+    // 2. 构建 parentContext（遍历边找祖先链）
+    const ancestorTitles: string[] = []
+    let currentId: string | null = node.data.parentNodeId
+
+    while (currentId) {
+      const parentNode = get().nodes.find(n => n.id === currentId)
+      if (!parentNode) break
+
+      if (parentNode.type === 'direction') {
+        ancestorTitles.unshift(parentNode.data.title)
+        currentId = parentNode.data.parentNodeId
+      } else if (parentNode.type === 'idea') {
+        ancestorTitles.unshift(parentNode.data.idea)
+        currentId = null
+      } else {
+        break
+      }
+    }
+
+    // 3. 调用 AI 生成子方向
+    try {
+      const directions = await aiClient.generateDirections({
+        idea: node.data.opinionDraft.trim(),
+        parentContext: {
+          parentTitle: node.data.title,
+          parentSummary: node.data.summary,
+          userOpinion: node.data.opinionDraft.trim(),
+          ancestorTitles,
+        },
+      })
+
+      // 4. 创建子节点（初始位置在父节点右侧，避免飞入动画）
+      const parentPos = node.position || { x: 0, y: 0 }
+      const childNodes = directions.map((dir, i) =>
+        createDirectionNode(
+          { x: parentPos.x + 570, y: parentPos.y + i * 60 },
+          dir.title, dir.summary, dir.keywords, node.data.depth + 1, nodeId
+        )
+      )
+
+      const newEdges = childNodes.map(child =>
+        createEdge(nodeId, child.id, 'derived')
+      )
+
+      // 5. 重置父节点状态并执行布局
+      set((s) => ({
+        nodes: [
+          ...s.nodes.map(n =>
+            n.id === nodeId && n.type === 'direction'
+              ? { ...n, data: { ...n.data, status: 'idle' as const, opinionDraft: '' } }
+              : n
+          ),
+          ...childNodes,
+        ] as CanvasNode[],
+        edges: [...s.edges, ...newEdges],
+      }))
+
+      // 6. 设置聚焦目标并执行自动布局
+      setPendingFocusNodes(nodeId, childNodes.map(c => c.id))
+      get().layoutNodes()
+    } catch {
+      set((s) => ({
+        nodes: s.nodes.map(n =>
+          n.id === nodeId && n.type === 'direction'
+            ? { ...n, data: { ...n.data, status: 'idle' as const } }
+            : n
+        ) as CanvasNode[],
+      }))
+    }
+  },
+
+  confirmDirection: (nodeId) => {
+    set((s) => ({
+      nodes: s.nodes.map(n =>
+        n.id === nodeId && n.type === 'direction'
+          ? { ...n, data: { ...n.data, status: 'confirmed' as const } }
+          : n
+      ) as CanvasNode[],
+    }))
+  },
+
+  pendingDirection: (nodeId) => {
+    set((s) => ({
+      nodes: s.nodes.map(n =>
+        n.id === nodeId && n.type === 'direction'
+          ? { ...n, data: { ...n.data, status: 'pending' as const } }
+          : n
+      ) as CanvasNode[],
+    }))
+  },
+
+  confirmedDirections: () => {
+    return get().nodes
+      .filter(n => n.type === 'direction' && n.data.status === 'confirmed')
+      .map(n => (n as DirectionCanvasNode).data)
+  },
+
+  pendingDirections: () => {
+    return get().nodes
+      .filter(n => n.type === 'direction' && n.data.status === 'pending')
+      .map(n => (n as DirectionCanvasNode).data)
+  },
+
+  removeFromPanel: (nodeId) => {
+    set((s) => ({
+      nodes: s.nodes.map(n =>
+        n.id === nodeId && n.type === 'direction'
+          ? { ...n, data: { ...n.data, status: 'idle' as const } }
+          : n
+      ) as CanvasNode[],
+    }))
+  },
+
+  moveToCategory: (nodeId, newStatus) => {
+    set((s) => ({
+      nodes: s.nodes.map(n =>
+        n.id === nodeId && n.type === 'direction'
+          ? { ...n, data: { ...n.data, status: newStatus as DirectionCanvasNode['data']['status'] } }
+          : n
+      ) as CanvasNode[],
+    }))
+  },
+
+  // layoutNodes 现在只是触发信号，实际布局由 useAutoLayout hook 在 ReactFlow 内部执行
+  layoutNodes: () => {
+    set((s) => ({ layoutVersion: s.layoutVersion + 1 }))
+  },
+
+  loadSnapshot: (snapshot) => {
+    set({ nodes: snapshot.nodes, edges: snapshot.edges, lastDeleted: null })
+  },
+
+  clearCanvas: () => {
+    set({ nodes: [], edges: [], lastDeleted: null })
+  },
+}})
+
