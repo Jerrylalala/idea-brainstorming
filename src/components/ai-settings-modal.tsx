@@ -2,9 +2,7 @@ import { useState } from 'react'
 import { X, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useUIStore } from '@/store/ui-store'
-import { useAIConfigStore, PROVIDER_PRESETS, type AIConfig, type ProviderPreset } from '@/canvas/lib/ai-config-store'
-import { OpenAICompatibleClient } from '@/canvas/lib/openai-compatible-client'
-import { AnthropicAIClient } from '@/canvas/lib/real-ai-client'
+import { useAIConfigStore, PROVIDER_PRESETS, buildClient, type AIConfig, type ProviderPreset } from '@/canvas/lib/ai-config-store'
 
 export function AISettingsModal() {
   const settingsOpen = useUIStore((s) => s.settingsOpen)
@@ -32,15 +30,11 @@ export function AISettingsModal() {
     if (!apiKey || !baseURL) return
     setTestStatus('loading')
     setTestMsg('')
+    const gen = buildClient({ provider, baseURL, apiKey, model }).streamChat({
+      messages: [{ id: 'test', role: 'user', text: 'Hi', createdAt: Date.now() }],
+      sourceRefs: [],
+    })
     try {
-      const client = provider === 'anthropic'
-        ? new AnthropicAIClient(apiKey, baseURL || undefined)
-        : new OpenAICompatibleClient(apiKey, baseURL, model)
-      const gen = client.streamChat({
-        messages: [{ id: 'test', role: 'user', text: 'Hi', createdAt: Date.now() }],
-        sourceRefs: [],
-      })
-      // 只读第一个 chunk，收到即成功
       const first = await gen.next()
       if (first.value?.type === 'error') throw new Error(first.value.error)
       setTestStatus('ok')
@@ -48,6 +42,8 @@ export function AISettingsModal() {
     } catch (e) {
       setTestStatus('error')
       setTestMsg(e instanceof Error ? e.message : '连接失败')
+    } finally {
+      await gen.return(undefined)
     }
   }
 
@@ -104,6 +100,7 @@ export function AISettingsModal() {
               placeholder="sk-xxxxxxxxxxxxxxxx"
               className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
             />
+            <p className="mt-1 text-xs text-slate-400">API Key 存储在本地浏览器，请勿在公共设备使用</p>
           </div>
 
           {/* Model */}

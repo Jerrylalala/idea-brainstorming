@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import type { AIClient, ChatRequest, ChatChunk, DirectionRequest, Direction } from '../types'
+import { buildDirectionPrompt, parseDirectionsJSON } from './prompt-builder'
 
 /**
  * 通用 OpenAI 兼容客户端
@@ -15,6 +16,7 @@ export class OpenAICompatibleClient implements AIClient {
     this.client = new OpenAI({
       apiKey,
       baseURL,
+      // 已知取舍：此应用为本地个人工具，无后端代理，需直接从浏览器调用
       dangerouslyAllowBrowser: true,
     })
   }
@@ -45,42 +47,13 @@ export class OpenAICompatibleClient implements AIClient {
   }
 
   async generateDirections(input: DirectionRequest): Promise<Direction[]> {
-    const contextPart = input.parentContext
-      ? `
-父方向：${input.parentContext.parentTitle}
-父摘要：${input.parentContext.parentSummary}
-用户补充意见：${input.parentContext.userOpinion}
-祖先链：${input.parentContext.ancestorTitles.join(' → ')}
-`
-      : ''
-
-    const prompt = `你是一个创意探索助手。用户正在探索以下想法：
-
-"${input.idea}"
-${contextPart}
-请生成 5-7 个不同的探索方向。
-
-**严格按照以下 JSON 格式输出，不要有任何其他文字**：
-[
-  {
-    "title": "方向标题（5字以内）",
-    "summary": "一句话描述（20字以内）",
-    "keywords": ["关键词1", "关键词2", "关键词3"]
-  }
-]`
-
     const response = await this.client.chat.completions.create({
       model: this.model,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content: buildDirectionPrompt(input) }],
       stream: false,
     })
 
     const text = response.choices[0]?.message?.content ?? ''
-
-    // 提取 JSON 数组（兼容 AI 可能输出 markdown 代码块的情况）
-    const jsonMatch = text.match(/\[[\s\S]*\]/)
-    if (!jsonMatch) throw new Error('AI 返回格式错误')
-
-    return JSON.parse(jsonMatch[0]) as Direction[]
+    return parseDirectionsJSON(text)
   }
 }

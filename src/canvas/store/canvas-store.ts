@@ -67,15 +67,19 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
   layoutVersion: 0,
 
   onNodesChange: (changes) => {
-    const removeChanges = changes.filter(c => c.type === 'remove')
-    const otherChanges = changes.filter(c => c.type !== 'remove')
+    const removes: NodeChange<CanvasNode>[] = []
+    const others: NodeChange<CanvasNode>[] = []
+    for (const c of changes) {
+      if (c.type === 'remove') removes.push(c)
+      else others.push(c)
+    }
 
-    if (otherChanges.length > 0) {
-      set({ nodes: applyNodeChanges(otherChanges, get().nodes) as CanvasNode[] })
+    if (others.length > 0) {
+      set({ nodes: applyNodeChanges(others, get().nodes) as CanvasNode[] })
     }
 
     // Delete 键触发的 remove 变更走自定义删除逻辑（级联 + 设置 lastDeleted）
-    removeChanges.forEach(c => get().deleteNode((c as { id: string }).id))
+    removes.forEach(c => get().deleteNode((c as { id: string }).id))
   },
 
   onEdgesChange: (changes) => {

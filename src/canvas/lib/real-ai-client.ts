@@ -1,14 +1,17 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { AIClient, ChatRequest, ChatChunk, DirectionRequest, Direction } from '../types'
-
-const MODEL = 'claude-sonnet-4-6'
+import { buildDirectionPrompt, parseDirectionsJSON } from './prompt-builder'
 
 export class AnthropicAIClient implements AIClient {
   private client: Anthropic
+  private model: string
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, model: string, baseURL?: string) {
+    this.model = model
     this.client = new Anthropic({
       apiKey,
+      ...(baseURL ? { baseURL } : {}),
+      // 已知取舍：此应用为本地个人工具，无后端代理，需直接从浏览器调用
       dangerouslyAllowBrowser: true,
     })
   }
@@ -24,7 +27,7 @@ export class AnthropicAIClient implements AIClient {
 
     try {
       const stream = this.client.messages.stream({
-        model: MODEL,
+        model: this.model,
         max_tokens: 2048,
         system: systemMsg?.text,
         messages: userMessages,
@@ -46,34 +49,10 @@ export class AnthropicAIClient implements AIClient {
   }
 
   async generateDirections(input: DirectionRequest): Promise<Direction[]> {
-    const contextPart = input.parentContext
-      ? `
-父方向：${input.parentContext.parentTitle}
-父摘要：${input.parentContext.parentSummary}
-用户补充意见：${input.parentContext.userOpinion}
-祖先链：${input.parentContext.ancestorTitles.join(' → ')}
-`
-      : ''
-
-    const prompt = `你是一个创意探索助手。用户正在探索以下想法：
-
-"${input.idea}"
-${contextPart}
-请生成 5-7 个不同的探索方向。
-
-**严格按照以下 JSON 格式输出，不要有任何其他文字**：
-[
-  {
-    "title": "方向标题（5字以内）",
-    "summary": "一句话描述（20字以内）",
-    "keywords": ["关键词1", "关键词2", "关键词3"]
-  }
-]`
-
     const response = await this.client.messages.create({
-      model: MODEL,
+      model: this.model,
       max_tokens: 1024,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content: buildDirectionPrompt(input) }],
     })
 
     const text = response.content
@@ -81,11 +60,6 @@ ${contextPart}
       .map(b => (b as { type: 'text'; text: string }).text)
       .join('')
 
-    // 提取 JSON 数组（兼容 AI 可能输出 markdown 代码块的情况）
-    const jsonMatch = text.match(/\[[\s\S]*\]/)
-    if (!jsonMatch) throw new Error('AI 返回格式错误')
-
-    const directions = JSON.parse(jsonMatch[0]) as Direction[]
-    return directions
+    return parseDirectionsJSON(text)
   }
 }

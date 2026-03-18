@@ -42,15 +42,17 @@ export function LeftNavPane() {
           <div className="space-y-4 pb-6">
             {mockNavGroups.map((group) => {
               const TitleIcon = titleIcon[group.title];
+              const isActive = group.title === 'All Sessions';
+              const action = group.title === 'Settings' ? () => setSettingsOpen(true) : undefined;
               return (
                 <div key={group.title}>
                   <button
                     className={cn(
                       'flex h-9 w-full items-center rounded-xl px-3 text-sm text-slate-700',
-                      group.title === 'All Sessions' && 'bg-slate-200/80',
-                      group.title === 'Settings' && 'hover:bg-slate-200/60 cursor-pointer'
+                      isActive && 'bg-slate-200/80',
+                      action && 'hover:bg-slate-200/60 cursor-pointer'
                     )}
-                    onClick={group.title === 'Settings' ? () => setSettingsOpen(true) : undefined}
+                    onClick={action}
                   >
                     {TitleIcon && <TitleIcon className="mr-2 h-4 w-4 text-slate-500" />}
                     <span>{group.title}</span>

@@ -9,4 +9,5 @@ export interface NavSubItem {
 export interface NavGroup {
     title: string;
     items: NavSubItem[];
+    action?: () => void;
 }

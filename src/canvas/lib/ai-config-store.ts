@@ -23,10 +23,12 @@ export const PROVIDER_PRESETS: Record<ProviderPreset, { label: string; baseURL: 
 
 const STORAGE_KEY = 'ai_config'
 
-function buildClient(config: AIConfig | null): AIClient {
+// 已知取舍：apiKey 明文存储在 localStorage，此应用定位为本地个人工具
+// 如需公网部署，改为只持久化非敏感字段（provider/baseURL/model），apiKey 仅保留在内存
+export function buildClient(config: AIConfig | null): AIClient {
   if (!config || !config.apiKey) return new MockAIClient()
   if (config.provider === 'anthropic') {
-    return new AnthropicAIClient(config.apiKey, config.baseURL || undefined)
+    return new AnthropicAIClient(config.apiKey, config.model, config.baseURL || undefined)
   }
   return new OpenAICompatibleClient(config.apiKey, config.baseURL, config.model)
 }
@@ -36,6 +38,7 @@ function loadFromStorage(): AIConfig | null {
     const raw = localStorage.getItem(STORAGE_KEY)
     return raw ? (JSON.parse(raw) as AIConfig) : null
   } catch {
+    if (import.meta.env.DEV) console.warn('[ai-config] localStorage 解析失败，使用环境变量兜底')
     return null
   }
 }
