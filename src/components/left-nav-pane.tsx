@@ -12,6 +12,8 @@ export function LeftNavPane() {
   const leftCollapsed = useUIStore((s) => s.leftCollapsed);
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const createSession = useSessionStore((s) => s.createSession);
+  const activeFilter = useSessionStore((s) => s.activeFilter);
+  const setFilter = useSessionStore((s) => s.setFilter);
 
   // 标题对应的图标
   const titleIcon: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -42,17 +44,23 @@ export function LeftNavPane() {
           <div className="space-y-4 pb-6">
             {mockNavGroups.map((group) => {
               const TitleIcon = titleIcon[group.title];
-              const isActive = group.title === 'All Sessions';
-              const action = group.title === 'Settings' ? () => setSettingsOpen(true) : undefined;
+              const isGroupActive = group.title === 'All Sessions' && activeFilter === null;
+              const groupAction =
+                group.title === 'Settings'
+                  ? () => setSettingsOpen(true)
+                  : group.title === 'All Sessions'
+                  ? () => setFilter(null)
+                  : undefined;
+
               return (
                 <div key={group.title}>
                   <button
                     className={cn(
                       'flex h-9 w-full items-center rounded-xl px-3 text-sm text-slate-700',
-                      isActive && 'bg-slate-200/80',
-                      action && 'hover:bg-slate-200/60 cursor-pointer'
+                      isGroupActive && 'bg-slate-200/80',
+                      groupAction && 'hover:bg-slate-200/60 cursor-pointer'
                     )}
-                    onClick={action}
+                    onClick={groupAction}
                   >
                     {TitleIcon && <TitleIcon className="mr-2 h-4 w-4 text-slate-500" />}
                     <span>{group.title}</span>
@@ -62,10 +70,15 @@ export function LeftNavPane() {
                     <div className="mt-1 space-y-1 pl-4">
                       {group.items.map((item) => {
                         const Icon = item.icon;
+                        const isItemActive = activeFilter === item.filter;
                         return (
                           <button
                             key={item.label}
-                            className="flex h-8 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-slate-700 hover:bg-slate-200/60"
+                            onClick={() => setFilter(item.filter ?? null)}
+                            className={cn(
+                              'flex h-8 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-slate-700 hover:bg-slate-200/60',
+                              isItemActive && 'bg-slate-200/80 font-medium'
+                            )}
                           >
                             <Icon className={cn('h-3.5 w-3.5', item.color)} />
                             <span>{item.label}</span>

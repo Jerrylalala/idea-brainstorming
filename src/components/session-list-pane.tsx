@@ -4,11 +4,27 @@ import { cn } from '@/lib/utils';
 import { useSessionStore } from '@/store/session-store';
 import type { SessionItem } from '@/types/session';
 
-// 会话列表栏：按分组展示所有 Session
+// 会话列表栏：按分组展示所有 Session，支持按 status 过滤
 export function SessionListPane() {
-  const { sessions, activeSessionId, setActiveSessionId } = useSessionStore();
-  const today = sessions.filter((s) => s.group === 'TODAY');
-  const yesterday = sessions.filter((s) => s.group === 'YESTERDAY');
+  const { sessions, activeSessionId, activeFilter, setActiveSessionId } = useSessionStore();
+
+  // 按 filter 过滤，null 表示显示全部
+  const filtered = activeFilter
+    ? sessions.filter((s) => s.status === activeFilter)
+    : sessions;
+
+  const today = filtered.filter((s) => s.group === 'TODAY');
+  const yesterday = filtered.filter((s) => s.group === 'YESTERDAY');
+
+  // 过滤后无结果时的标题
+  const filterLabel: Record<string, string> = {
+    backlog: 'Backlog',
+    todo: 'Todo',
+    'needs-review': 'Needs Review',
+    done: 'Done',
+    archived: 'Archived',
+  };
+  const listTitle = activeFilter ? filterLabel[activeFilter] : 'All Sessions';
 
   const renderGroup = (title: string, items: SessionItem[]) => (
     <div className="pb-2">
@@ -43,13 +59,19 @@ export function SessionListPane() {
   return (
     <div className="w-[306px] border-r bg-[#fafafa]">
       <div className="flex h-12 items-center justify-between px-4">
-        <div className="text-sm font-semibold text-slate-800">All Sessions</div>
+        <div className="text-sm font-semibold text-slate-800">{listTitle}</div>
         <MoreHorizontal className="h-4 w-4 text-slate-400" />
       </div>
 
       <ScrollArea className="h-[calc(100vh-92px)] px-3 pb-4">
-        {today.length > 0 && renderGroup('TODAY', today)}
-        {yesterday.length > 0 && renderGroup('YESTERDAY', yesterday)}
+        {filtered.length === 0 ? (
+          <div className="px-2 pt-8 text-center text-sm text-slate-400">暂无会话</div>
+        ) : (
+          <>
+            {today.length > 0 && renderGroup('TODAY', today)}
+            {yesterday.length > 0 && renderGroup('YESTERDAY', yesterday)}
+          </>
+        )}
       </ScrollArea>
     </div>
   );

@@ -18,12 +18,17 @@ export function AISettingsModal() {
 
   if (!settingsOpen) return null
 
+  // 非 custom provider 的 Base URL 和 Model 由预设决定，不允许手动修改
+  const isCustom = provider === 'custom'
+
   function handleProviderChange(p: ProviderPreset) {
     setProvider(p)
     if (p !== 'custom') {
       setBaseURL(PROVIDER_PRESETS[p].baseURL)
       setModel(PROVIDER_PRESETS[p].model)
     }
+    setTestStatus('idle')
+    setTestMsg('')
   }
 
   async function handleTest() {
@@ -78,16 +83,20 @@ export function AISettingsModal() {
             </select>
           </div>
 
-          {/* Base URL */}
+          {/* Base URL — 预设 provider 只读 */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">Base URL</label>
             <input
               type="text"
               value={baseURL}
-              onChange={(e) => setBaseURL(e.target.value)}
+              onChange={(e) => isCustom && setBaseURL(e.target.value)}
+              readOnly={!isCustom}
               placeholder="https://api.example.com/v1"
-              className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
+              className={`h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300 ${isCustom ? 'bg-white' : 'bg-slate-50 text-slate-500 cursor-default'}`}
             />
+            {!isCustom && (
+              <p className="mt-1 text-xs text-slate-400">预设 Provider 的地址已锁定，如需自定义请选择「自定义中转」</p>
+            )}
           </div>
 
           {/* API Key */}
@@ -103,15 +112,16 @@ export function AISettingsModal() {
             <p className="mt-1 text-xs text-slate-400">API Key 存储在本地浏览器，请勿在公共设备使用</p>
           </div>
 
-          {/* Model */}
+          {/* Model — 预设 provider 只读 */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">Model</label>
             <input
               type="text"
               value={model}
-              onChange={(e) => setModel(e.target.value)}
+              onChange={(e) => isCustom && setModel(e.target.value)}
+              readOnly={!isCustom}
               placeholder="deepseek-chat"
-              className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
+              className={`h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300 ${isCustom ? 'bg-white' : 'bg-slate-50 text-slate-500 cursor-default'}`}
             />
           </div>
 
