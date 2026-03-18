@@ -172,6 +172,8 @@ export function DecisionDrawer() {
   const [activeId, setActiveId] = useState<string | null>(null);
   // 追踪拖拽过程中经过的区域，避免 dragEnd 时碰撞检测误判
   const dragOverZone = useRef<'confirmed' | 'pending' | null>(null);
+  // 记录拖拽开始时的原始区域，用于取消时恢复
+  const dragSourceZone = useRef<'confirmed' | 'pending' | null>(null);
 
   // 组合碰撞检测：先用指针位置（精准），找不到再用矩形面积兜底
   const collisionDetection: CollisionDetection = useCallback((args) => {
@@ -290,18 +292,57 @@ export function DecisionDrawer() {
     : null;
 
   const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id as string);
+    const id = event.active.id as string;
+    setActiveId(id);
     dragOverZone.current = null;
+    dragSourceZone.current = confirmedOrder.includes(id) ? 'confirmed' : 'pending';
   };
 
   const handleDragOver = (event: DragOverEvent) => {
-    const { over } = event;
+    const { active, over } = event;
     if (!over) return;
+    const activeId = active.id as string;
     const overId = over.id as string;
+
+    const isActiveInConfirmed = confirmedOrder.includes(activeId);
+    const isActiveInPending = pendingOrder.includes(activeId);
+
     if (overId === DROPPABLE_PENDING || pendingOrder.includes(overId)) {
       dragOverZone.current = 'pending';
+      if (isActiveInConfirmed && !pendingOrder.includes(activeId)) {
+        // 跨区进入 pending：临时插入，驱动占位阴影
+        setPendingOrder(items => {
+          const overIndex = items.indexOf(overId);
+          if (overIndex === -1) return [...items, activeId];
+          return [...items.slice(0, overIndex), activeId, ...items.slice(overIndex)];
+        });
+      } else if (isActiveInPending && pendingOrder.includes(overId)) {
+        // 在 pending 内移动：实时更新排序
+        setPendingOrder(items => {
+          const oldIndex = items.indexOf(activeId);
+          const newIndex = items.indexOf(overId);
+          if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return items;
+          return arrayMove(items, oldIndex, newIndex);
+        });
+      }
     } else if (overId === DROPPABLE_CONFIRMED || confirmedOrder.includes(overId)) {
       dragOverZone.current = 'confirmed';
+      if (isActiveInPending && !confirmedOrder.includes(activeId)) {
+        // 跨区进入 confirmed：临时插入，驱动占位阴影
+        setConfirmedOrder(items => {
+          const overIndex = items.indexOf(overId);
+          if (overIndex === -1) return [...items, activeId];
+          return [...items.slice(0, overIndex), activeId, ...items.slice(overIndex)];
+        });
+      } else if (isActiveInConfirmed && confirmedOrder.includes(overId)) {
+        // 在 confirmed 内移动：实时更新排序
+        setConfirmedOrder(items => {
+          const oldIndex = items.indexOf(activeId);
+          const newIndex = items.indexOf(overId);
+          if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return items;
+          return arrayMove(items, oldIndex, newIndex);
+        });
+      }
     }
   };
 
@@ -309,54 +350,33 @@ export function DecisionDrawer() {
     setActiveId(null);
     const { active, over } = event;
     const activeId = active.id as string;
-
-    // over 为 null 时，用 dragOverZone 兜底（快速拖拽时 over 可能丢失）
-    const overId = over ? (over.id as string) : null;
+    const sourceZone = dragSourceZone.current;
     const zone = dragOverZone.current;
     dragOverZone.current = null;
+    dragSourceZone.current = null;
 
-    if (!overId && !zone) return;
-    if (overId && active.id === overId) return;
+    // 取消拖拽（over=null 或拖回原区）：把临时插入的 item 从目标区移除
+    if (!over) {
+      if (sourceZone === 'confirmed') {
+        setPendingOrder(items => items.filter(id => id !== activeId));
+      } else if (sourceZone === 'pending') {
+        setConfirmedOrder(items => items.filter(id => id !== activeId));
+      }
+      return;
+    }
 
-    const isActiveInConfirmed = confirmedOrder.includes(activeId);
-    const isActiveInPending = pendingOrder.includes(activeId);
-    const isOverInConfirmed = (overId && (confirmedOrder.includes(overId) || overId === DROPPABLE_CONFIRMED)) || zone === 'confirmed';
-    const isOverInPending = (overId && (pendingOrder.includes(overId) || overId === DROPPABLE_PENDING)) || zone === 'pending';
+    const isCrossZone = sourceZone !== zone;
 
-    // 跨区域拖拽
-    if (isActiveInConfirmed && isOverInPending) {
+    if (isCrossZone && sourceZone === 'confirmed' && zone === 'pending') {
+      // confirmed → pending：order 已在 dragOver 中更新，只需调用 moveToCategory + 从源区移除
       moveToCategory(activeId, 'pending');
       setConfirmedOrder(items => items.filter(id => id !== activeId));
-      setPendingOrder(items => {
-        if (!overId || overId === DROPPABLE_PENDING) return [...items, activeId];
-        const overIndex = items.indexOf(overId);
-        if (overIndex === -1) return [...items, activeId];
-        return [...items.slice(0, overIndex + 1), activeId, ...items.slice(overIndex + 1)];
-      });
-    } else if (isActiveInPending && isOverInConfirmed) {
+    } else if (isCrossZone && sourceZone === 'pending' && zone === 'confirmed') {
+      // pending → confirmed
       moveToCategory(activeId, 'confirmed');
       setPendingOrder(items => items.filter(id => id !== activeId));
-      setConfirmedOrder(items => {
-        if (!overId || overId === DROPPABLE_CONFIRMED) return [...items, activeId];
-        const overIndex = items.indexOf(overId);
-        if (overIndex === -1) return [...items, activeId];
-        return [...items.slice(0, overIndex + 1), activeId, ...items.slice(overIndex + 1)];
-      });
-    } else if (overId && isActiveInConfirmed && confirmedOrder.includes(overId)) {
-      // 在 confirmed 区内排序
-      setConfirmedOrder((items) => {
-        const oldIndex = items.indexOf(activeId);
-        const newIndex = items.indexOf(overId);
-        return arrayMove(items, oldIndex, newIndex);
-      });
-    } else if (overId && isActiveInPending && pendingOrder.includes(overId)) {
-      // 在 pending 区内排序
-      setPendingOrder((items) => {
-        const oldIndex = items.indexOf(activeId);
-        const newIndex = items.indexOf(overId);
-        return arrayMove(items, oldIndex, newIndex);
-      });
     }
+    // 同区内排序：dragOver 已实时处理，无需额外操作
   };
 
   return (
