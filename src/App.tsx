@@ -3,6 +3,7 @@ import { LeftNavPane } from '@/components/left-nav-pane';
 import { SessionListPane } from '@/components/session-list-pane';
 import { DecisionDrawer } from '@/components/decision-drawer';
 import { BrainstormCanvas } from '@/canvas/brainstorm-canvas';
+import { AISettingsModal } from '@/components/ai-settings-modal';
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
         <BrainstormCanvas />
         <DecisionDrawer />
       </div>
+      <AISettingsModal />
     </div>
   );
 }

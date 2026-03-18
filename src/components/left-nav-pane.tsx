@@ -10,6 +10,7 @@ import { mockNavGroups } from '@/data/mock-nav-groups';
 // 左侧导航栏：New Session + All Sessions / Labels / Settings
 export function LeftNavPane() {
   const leftCollapsed = useUIStore((s) => s.leftCollapsed);
+  const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const createSession = useSessionStore((s) => s.createSession);
 
   // 标题对应的图标
@@ -46,8 +47,10 @@ export function LeftNavPane() {
                   <button
                     className={cn(
                       'flex h-9 w-full items-center rounded-xl px-3 text-sm text-slate-700',
-                      group.title === 'All Sessions' && 'bg-slate-200/80'
+                      group.title === 'All Sessions' && 'bg-slate-200/80',
+                      group.title === 'Settings' && 'hover:bg-slate-200/60 cursor-pointer'
                     )}
+                    onClick={group.title === 'Settings' ? () => setSettingsOpen(true) : undefined}
                   >
                     {TitleIcon && <TitleIcon className="mr-2 h-4 w-4 text-slate-500" />}
                     <span>{group.title}</span>
