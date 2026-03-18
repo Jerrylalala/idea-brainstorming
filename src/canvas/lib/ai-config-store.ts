@@ -178,6 +178,9 @@ export const useAIConfigStore = create<AIConfigStore>((set, get) => ({
     const newConfigs = { ...get().configs }
     delete newConfigs[provider]
     localStorage.setItem(STORAGE_KEY_CONFIGS, JSON.stringify(newConfigs))
-    set({ configs: newConfigs, client: new MockAIClient() })
+    // 清除后重置 activeProvider 到 deepseek（默认），避免 UI 显示已清除的 provider 为激活状态
+    const fallback: ProviderPreset = 'deepseek'
+    localStorage.setItem(STORAGE_KEY_ACTIVE, fallback)
+    set({ configs: newConfigs, activeProvider: fallback, client: new MockAIClient() })
   },
 }))
