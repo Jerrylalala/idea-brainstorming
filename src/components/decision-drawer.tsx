@@ -37,9 +37,10 @@ import { CSS } from '@dnd-kit/utilities';
 const DROPPABLE_CONFIRMED = 'droppable-confirmed';
 const DROPPABLE_PENDING = 'droppable-pending';
 
-// 可放置区域容器
+// 可放置区域容器：只在列表为空时注册为 droppable，有 item 时不注册
+// 这样碰撞检测只会命中具体 item，避免 overId 是容器导致插入位置计算错误
 function DroppableZone({ id, children, isEmpty }: { id: string; children: React.ReactNode; isEmpty: boolean }) {
-  const { setNodeRef, isOver } = useDroppable({ id });
+  const { setNodeRef, isOver } = useDroppable({ id, disabled: !isEmpty });
   return (
     <div ref={setNodeRef} className={`min-h-[8px] rounded transition-colors ${isOver && isEmpty ? 'bg-slate-100 border border-dashed border-slate-300' : ''}`}>
       {children}
@@ -332,7 +333,8 @@ export function DecisionDrawer() {
         const overIndex = pendingOrder.indexOf(overId);
         let insertIndex: number;
         if (overIndex === -1) {
-          insertIndex = pendingOrder.length; // 拖到区域容器，追加末尾
+          // overId 是容器（列表为空时），插入 index=0
+          insertIndex = 0;
         } else {
           insertIndex = isBefore ? overIndex : overIndex + 1;
         }
@@ -356,7 +358,8 @@ export function DecisionDrawer() {
         const overIndex = confirmedOrder.indexOf(overId);
         let insertIndex: number;
         if (overIndex === -1) {
-          insertIndex = confirmedOrder.length;
+          // overId 是容器（列表为空时），插入 index=0
+          insertIndex = 0;
         } else {
           insertIndex = isBefore ? overIndex : overIndex + 1;
         }
