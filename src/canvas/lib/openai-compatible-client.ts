@@ -7,8 +7,9 @@ export class OpenAICompatibleClient implements AIClient {
   private model: LanguageModel
 
   constructor(apiKey: string, baseURL: string, modelId: string) {
+    // 使用 .chat() 强制走 /chat/completions，避免默认走 /responses（非 OpenAI 官方不支持）
     const provider = createOpenAI({ apiKey, baseURL })
-    this.model = provider(modelId)
+    this.model = provider.chat(modelId)
   }
 
   async *streamChat(input: ChatRequest, signal?: AbortSignal): AsyncGenerator<ChatChunk> {

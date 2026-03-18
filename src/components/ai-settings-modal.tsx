@@ -1,6 +1,6 @@
 // src/components/ai-settings-modal.tsx — 完整替换
 import { useState } from 'react'
-import { X, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
+import { X, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useUIStore } from '@/store/ui-store'
 import {
@@ -20,6 +20,7 @@ export function AISettingsModal() {
   const [model, setModel] = useState(initCfg?.model ?? PROVIDER_PRESETS[activeProvider].model)
   const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
   const [testMsg, setTestMsg] = useState('')
+  const [showApiKey, setShowApiKey] = useState(false)
 
   if (!settingsOpen) return null
 
@@ -34,6 +35,7 @@ export function AISettingsModal() {
     setModel(existing?.model ?? PROVIDER_PRESETS[p].model)
     setTestStatus('idle')
     setTestMsg('')
+    setShowApiKey(false)
   }
 
   function isSecureURL(url: string): boolean {
@@ -140,13 +142,22 @@ export function AISettingsModal() {
           {/* API Key */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">API Key</label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="sk-xxxxxxxxxxxxxxxx"
-              className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-            />
+            <div className="relative">
+              <input
+                type={showApiKey ? 'text' : 'password'}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="sk-xxxxxxxxxxxxxxxx"
+                className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 pr-9 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
+              />
+              <button
+                type="button"
+                onClick={() => setShowApiKey(!showApiKey)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
             <p className="mt-1 text-xs text-slate-400">
               {configs[provider] ? '✓ 已保存此供应商的 Key' : '尚未保存此供应商的 Key'}
             </p>

@@ -5,7 +5,7 @@ import { AnthropicCompatibleClient } from './real-ai-client'
 import { OpenAICompatibleClient } from './openai-compatible-client'
 import type { AIClient } from '../types'
 
-export type ProviderPreset = 'deepseek' | 'deepseek-anthropic' | 'kimi' | 'qwen' | 'anthropic' | 'custom'
+export type ProviderPreset = 'deepseek' | 'kimi' | 'qwen' | 'anthropic' | 'custom'
 
 // Per-provider 配置（key 就是 provider，无需重复存）
 export interface ProviderConfig {
@@ -28,8 +28,7 @@ export interface ModelOption {
 }
 
 export const PROVIDER_PRESETS: Record<ProviderPreset, { label: string; baseURL: string; model: string }> = {
-  deepseek: { label: 'DeepSeek (OpenAI 兼容)', baseURL: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
-  'deepseek-anthropic': { label: 'DeepSeek (Anthropic 格式)', baseURL: 'https://api.deepseek.com/anthropic', model: 'DeepSeek-V3.2' },
+  deepseek: { label: 'DeepSeek', baseURL: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
   kimi: { label: 'Kimi（月之暗面）', baseURL: 'https://api.moonshot.cn/v1', model: 'kimi-latest' },
   qwen: { label: '阿里云百炼', baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus' },
   anthropic: { label: 'Anthropic / CCSwitch 中转', baseURL: 'https://api.anthropic.com', model: 'claude-sonnet-4-6' },
@@ -41,9 +40,6 @@ export const PROVIDER_MODELS: Record<ProviderPreset, ModelOption[]> = {
   deepseek: [
     { id: 'deepseek-chat', label: 'DeepSeek V3（推荐）' },
     { id: 'deepseek-reasoner', label: 'DeepSeek R1（推理）' },
-  ],
-  'deepseek-anthropic': [
-    { id: 'DeepSeek-V3.2', label: 'DeepSeek V3.2（推荐）' },
   ],
   kimi: [
     { id: 'kimi-latest', label: 'Kimi 最新版（推荐）' },
@@ -64,7 +60,7 @@ export const PROVIDER_MODELS: Record<ProviderPreset, ModelOption[]> = {
   custom: [],
 }
 
-const ANTHROPIC_FORMAT_PROVIDERS: ProviderPreset[] = ['anthropic', 'deepseek-anthropic']
+const ANTHROPIC_FORMAT_PROVIDERS: ProviderPreset[] = ['anthropic']
 
 const STORAGE_KEY_CONFIGS = 'ai_configs'
 const STORAGE_KEY_ACTIVE = 'ai_active_provider'
