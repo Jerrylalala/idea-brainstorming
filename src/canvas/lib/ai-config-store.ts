@@ -179,41 +179,7 @@ interface AIConnectionStore {
   updateConnectionStatus: (id: string, status: Connection['status']) => void
 }
 
-const { connections: initConnections, activeId: initActiveId } = (() => {
-  const loaded = loadConnections()
-  // 如果没有任何连接，尝试从环境变量创建初始连接
-  if (loaded.connections.length === 0) {
-    const aiKey = import.meta.env.VITE_AI_API_KEY as string | undefined
-    const aiURL = import.meta.env.VITE_AI_BASE_URL as string | undefined
-    const aiModel = (import.meta.env.VITE_AI_MODEL as string | undefined) ?? 'deepseek-chat'
-    if (aiKey && aiURL) {
-      const conn: Connection = {
-        id: generateId(),
-        name: extractName(aiURL),
-        baseURL: aiURL,
-        apiKey: aiKey,
-        model: aiModel,
-        format: 'openai',
-        status: 'idle',
-      }
-      return { connections: [conn], activeId: conn.id }
-    }
-    const anthKey = import.meta.env.VITE_ANTHROPIC_API_KEY as string | undefined
-    if (anthKey) {
-      const conn: Connection = {
-        id: generateId(),
-        name: 'Anthropic',
-        baseURL: 'https://api.anthropic.com/v1',
-        apiKey: anthKey,
-        model: 'claude-sonnet-4-6',
-        format: 'anthropic',
-        status: 'idle',
-      }
-      return { connections: [conn], activeId: conn.id }
-    }
-  }
-  return loaded
-})()
+const { connections: initConnections, activeId: initActiveId } = loadConnections()
 
 export const useAIConnectionStore = create<AIConnectionStore>((set, get) => ({
   connections: initConnections,

@@ -8,19 +8,25 @@ export type Direction = {
   keywords: string[]
 }
 
+// Fix 045: 限制用户输入长度，过滤控制字符，防止提示注入
+function sanitizeInput(s: string, maxLen = 500): string {
+  return s.slice(0, maxLen).replace(/[\x00-\x1f]/g, ' ')
+}
+
 export function buildDirectionPrompt(input: DirectionRequest): string {
+  const idea = sanitizeInput(input.idea)
   const contextPart = input.parentContext
     ? `
-父方向：${input.parentContext.parentTitle}
-父摘要：${input.parentContext.parentSummary}
-用户补充意见：${input.parentContext.userOpinion}
-祖先链：${input.parentContext.ancestorTitles.join(' → ')}
+父方向：${sanitizeInput(input.parentContext.parentTitle)}
+父摘要：${sanitizeInput(input.parentContext.parentSummary)}
+用户补充意见：${sanitizeInput(input.parentContext.userOpinion)}
+祖先链：${sanitizeInput(input.parentContext.ancestorTitles.join(' → '))}
 `
     : ''
 
   return `你是一个创意探索助手。用户正在探索以下想法：
 
-"${input.idea}"
+"${idea}"
 ${contextPart}
 请生成 5-7 个不同的探索方向。
 

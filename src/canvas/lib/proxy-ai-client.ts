@@ -21,7 +21,10 @@ export class ProxyAIClient implements AIClient {
     })
 
     if (!res.ok) {
-      yield { type: 'error', error: `HTTP ${res.status}: ${await res.text()}` }
+      // Fix 046: 截断并转义响应体，防止潜在 XSS
+      const raw = await res.text()
+      const safeBody = raw.slice(0, 200).replace(/[<>&"']/g, c => `&#${c.charCodeAt(0)};`)
+      yield { type: 'error', error: `HTTP ${res.status}: ${safeBody}` }
       return
     }
 
@@ -73,7 +76,10 @@ export class ProxyAIClient implements AIClient {
     })
 
     if (!res.ok) {
-      throw new Error(`HTTP ${res.status}: ${await res.text()}`)
+      // Fix 046: 截断并转义响应体，防止潜在 XSS
+      const raw = await res.text()
+      const safeBody = raw.slice(0, 200).replace(/[<>&"']/g, c => `&#${c.charCodeAt(0)};`)
+      throw new Error(`HTTP ${res.status}: ${safeBody}`)
     }
 
     return res.json()

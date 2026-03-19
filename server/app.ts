@@ -14,18 +14,42 @@ type AIProxyBody = {
 }
 
 // Fix 035: 共享输入校验函数，应用于所有端点
-function validateAIProxyBody(body: Partial<AIProxyBody>): string | null {
+// Fix 044: 增加 format 枚举校验和 messages 数量限制
+function validateAIProxyBody(body: Partial<AIProxyBody & { messages?: unknown[] }>): string | null {
   if (!body.apiKey?.trim()) return 'apiKey 不能为空'
   if (!body.model?.trim()) return 'model 不能为空'
   if (!body.baseURL?.trim()) return 'baseURL 不允许（仅支持 HTTPS 公网地址）'
   if (!isAllowedBaseURL(body.baseURL)) return 'Base URL 不允许（仅支持 HTTPS 公网地址）'
+  if (body.format !== undefined && body.format !== 'openai' && body.format !== 'anthropic') {
+    return '无效的 format 参数'
+  }
+  if (body.messages !== undefined) {
+    if (!Array.isArray(body.messages) || body.messages.length > 100) {
+      return '消息数量超出限制（最多 100 条）'
+    }
+  }
   return null
 }
+
+// Fix 040: 阻断私有 IP 段，防止 SSRF（RFC 1918 / link-local / AWS IMDS）
+const BLOCKED_HOST_PATTERNS = [
+  /^10\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^192\.168\./,
+  /^169\.254\./,   // link-local / AWS IMDS
+  /^127\./,
+  /^::1$/,
+  /^fc00:/i,
+  /^fe80:/i,
+  /^0\./,
+]
 
 // SSRF 防御：校验 baseURL 只允许公网 HTTPS（P1-1）
 function isAllowedBaseURL(url: string): boolean {
   try {
     const { protocol, hostname } = new URL(url)
+    // Fix 040: 先阻断私有 IP 段
+    if (BLOCKED_HOST_PATTERNS.some(r => r.test(hostname))) return false
     // 允许 HTTPS 公网地址
     if (protocol === 'https:') return true
     // 允许本地开发 HTTP
@@ -34,6 +58,34 @@ function isAllowedBaseURL(url: string): boolean {
   } catch {
     return false
   }
+}
+
+// Fix 043: 流式错误脱敏，防止 SDK 原始错误（含 API Key 片段）泄露到客户端
+function sanitizeStreamError(err: unknown): string {
+  if (!(err instanceof Error)) return '未知错误'
+  const msg = err.message
+  if (msg.includes('401') || msg.includes('Unauthorized') || msg.includes('Invalid API key')) {
+    return 'API Key 无效，请检查设置'
+  }
+  if (msg.includes('429') || msg.includes('rate limit') || msg.includes('Rate limit')) {
+    return '请求频率超限，请稍后重试'
+  }
+  if (msg.includes('ECONNREFUSED') || msg.includes('ENOTFOUND') || msg.includes('ETIMEDOUT')) {
+    return '无法连接到 AI 服务，请检查网络和 URL'
+  }
+  return 'AI 服务请求失败，请重试'
+}
+
+// Fix 042: /api/sniff 错误脱敏，防止泄露网络层细节
+function sanitizeSniffError(e: unknown): string {
+  if (!(e instanceof Error)) return '连接失败'
+  if (e.message.includes('ECONNREFUSED') || e.message.includes('ENOTFOUND') || e.message.includes('ETIMEDOUT')) {
+    return '无法连接到指定地址，请检查 URL'
+  }
+  if (e.message.includes('401') || e.message.includes('403') || e.message.includes('Unauthorized')) {
+    return 'API Key 无效或无权限'
+  }
+  return '连接失败，请检查 URL 和 API Key'
 }
 
 const app = new Hono()
@@ -91,7 +143,9 @@ app.post('/api/chat', async (c) => {
         }
         send({ type: 'done' })
       } catch (err) {
-        send({ type: 'error', error: err instanceof Error ? err.message : '未知错误' })
+        // Fix 043: 记录原始错误供调试，但只向客户端发送脱敏信息
+        console.error('[api/chat] stream error:', err instanceof Error ? err.message : err)
+        send({ type: 'error', error: sanitizeStreamError(err) })
       } finally {
         controller.close()
       }
@@ -166,8 +220,10 @@ app.post('/api/sniff', async (c) => {
     if (controllers.openai.signal.aborted || controllers.anthropic.signal.aborted) {
       return c.json({ error: '连接超时（10s），请检查网络或 URL' }, 400)
     }
+    // Fix 042: 脱敏错误信息，防止泄露网络层细节（ECONNREFUSED 等）
     const errors = err instanceof AggregateError ? err.errors : [err]
-    const details = errors.map((e: unknown) => e instanceof Error ? e.message : String(e)).join(' / ')
+    console.error('[api/sniff] errors:', errors.map((e: unknown) => e instanceof Error ? e.message : String(e)).join(' / '))
+    const details = errors.map(sanitizeSniffError).join(' / ')
     return c.json({ error: `两种格式均失败：${details}` }, 400)
   }
 })
