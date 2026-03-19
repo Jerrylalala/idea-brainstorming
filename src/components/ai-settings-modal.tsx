@@ -3,19 +3,8 @@ import { useState } from 'react'
 import { X, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useUIStore } from '@/store/ui-store'
-import { useAIConnectionStore, type Connection } from '@/canvas/lib/ai-config-store'
+import { useAIConnectionStore, type Connection, extractName } from '@/canvas/lib/ai-config-store'
 import { cn } from '@/lib/utils'
-
-// 从 baseURL 提取显示名称（模块级，供表单和迁移共用）
-export function extractName(baseURL: string): string {
-  try {
-    const parts = new URL(baseURL).hostname.split('.')
-    const raw = parts.length >= 2 ? parts[parts.length - 2] : parts[0]
-    return raw.charAt(0).toUpperCase() + raw.slice(1)
-  } catch {
-    return 'Custom'
-  }
-}
 
 // URL 校验（内联，不新建文件）
 function validateBaseURL(url: string): { valid: boolean; warning?: string; error?: string } {

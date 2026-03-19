@@ -1,13 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { useNodesInitialized, useReactFlow } from '@xyflow/react'
+import { useReactFlow } from '@xyflow/react'
 import { useCanvasStore } from '../store/canvas-store'
 import type { CanvasNode, CanvasEdge } from '../types'
-
-// 记录每次布局新增的节点 ID，用于聚焦
-let pendingFocusNodeIds: string[] = []
-export function setPendingFocusNodes(parentId: string, childIds: string[]) {
-  pendingFocusNodeIds = [parentId, ...childIds]
-}
 
 const HORIZONTAL_GAP = 150  // 父→子水平间距
 const VERTICAL_GAP = 16     // 兄弟节点垂直间距
@@ -101,10 +95,8 @@ function getLayoutedElements(
  * 监听 layoutVersion 变化，等节点测量完成后执行布局
  */
 export function useAutoLayout() {
-  const nodesInitialized = useNodesInitialized()
   const { getNodes, fitView } = useReactFlow()
   const layoutVersion = useCanvasStore(s => s.layoutVersion)
-  const storeNodes = useCanvasStore(s => s.nodes)
   const lastLayoutedVersion = useRef(-1)
   const retryCount = useRef(0)
   const MAX_RETRIES = 20
@@ -116,21 +108,21 @@ export function useAutoLayout() {
     // 构建实测尺寸映射
     const measuredNodes = new Map<string, { width: number; height: number }>()
     rfNodes.forEach(node => {
-      const measured = (node as any).measured
-      if (measured?.width && measured?.height) {
-        measuredNodes.set(node.id, { width: measured.width, height: measured.height })
+      if (node.width != null && node.height != null) {
+        measuredNodes.set(node.id, { width: node.width, height: node.height })
       }
     })
 
-    // 筛选可布局的节点和边
-    const storeNodes = useCanvasStore.getState().nodes
-    const storeEdges = useCanvasStore.getState().edges
-    const layoutableNodes = storeNodes.filter(n => n.type === 'direction' || n.type === 'idea')
-    const layoutableEdges = storeEdges.filter(e => {
-      const src = storeNodes.find(n => n.id === e.source)
-      const tgt = storeNodes.find(n => n.id === e.target)
-      return (src?.type === 'direction' || src?.type === 'idea') &&
-             (tgt?.type === 'direction' || tgt?.type === 'idea')
+    // 筛选可布局的节点和边（O(n+e)）
+    const latestNodes = useCanvasStore.getState().nodes
+    const latestEdges = useCanvasStore.getState().edges
+    const layoutableNodes = latestNodes.filter(n => n.type === 'direction' || n.type === 'idea')
+    const nodeTypeMap = new Map(latestNodes.map(n => [n.id, n.type]))
+    const layoutableEdges = latestEdges.filter(e => {
+      const sourceType = nodeTypeMap.get(e.source)
+      const targetType = nodeTypeMap.get(e.target)
+      return (sourceType === 'direction' || sourceType === 'idea') &&
+             (targetType === 'direction' || targetType === 'idea')
     })
 
     if (layoutableNodes.length === 0) return
@@ -169,9 +161,10 @@ export function useAutoLayout() {
     }))
 
     // 布局完成后，聚焦到新增的父+子节点区域
+    const pendingFocusNodeIds = useCanvasStore.getState().pendingFocusNodeIds
     if (pendingFocusNodeIds.length > 0) {
       const focusIds = [...pendingFocusNodeIds]
-      pendingFocusNodeIds = []
+      useCanvasStore.getState().clearPendingFocusNodes()
       // 等一帧让位置生效后再 fitView
       requestAnimationFrame(() => {
         fitView({
@@ -197,16 +190,4 @@ export function useAutoLayout() {
       })
     })
   }, [layoutVersion, runLayout])
-
-  // 当 store nodes 变化时（新节点加入），也尝试执行布局
-  // 这确保即使 layoutVersion 没变，新节点也能被布局
-  useEffect(() => {
-    if (layoutVersion > 0 && nodesInitialized) {
-      // 延迟一点，确保 ReactFlow 完成测量
-      const timer = setTimeout(() => {
-        runLayout()
-      }, 100)
-      return () => clearTimeout(timer)
-    }
-  }, [storeNodes.length, nodesInitialized, layoutVersion, runLayout])
 }

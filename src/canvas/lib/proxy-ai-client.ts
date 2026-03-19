@@ -1,6 +1,6 @@
 // 前端代理 Client — 所有 AI 请求走 /api/* 同源路由，由后端转发
 import type { AIClient, ChatRequest, ChatChunk, DirectionRequest, Direction } from '../types'
-import type { AIConfig, Connection } from './ai-config-store'
+import type { Connection } from './ai-config-store'
 
 export type ConnectionConfig = Pick<Connection, 'format' | 'baseURL' | 'apiKey' | 'model'>
 
@@ -42,7 +42,7 @@ export class ProxyAIClient implements AIClient {
       buffer += decoder.decode(value, { stream: true })
       const lines = buffer.split('\n')
       // 最后一个元素可能是不完整的行，留到下一轮
-      buffer = lines.pop()!
+      buffer = lines.pop() ?? ''
 
       for (const line of lines) {
         if (!line.trim()) continue
