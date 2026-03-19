@@ -177,6 +177,7 @@ interface AIConnectionStore {
   removeConnection: (id: string) => void
   setActiveId: (id: string) => void
   updateConnectionStatus: (id: string, status: Connection['status']) => void
+  updateConnection: (id: string, partial: Partial<Pick<Connection, 'baseURL' | 'format' | 'status'>>) => void
 }
 
 const { connections: initConnections, activeId: initActiveId } = loadConnections()
@@ -220,6 +221,21 @@ export const useAIConnectionStore = create<AIConnectionStore>((set, get) => ({
   updateConnectionStatus: (id, status) => {
     set({
       connections: get().connections.map(c => c.id === id ? { ...c, status } : c),
+    })
+  },
+
+  updateConnection: (id, partial) => {
+    if (!get().connections.some(c => c.id === id)) return
+    const newConnections = get().connections.map(c =>
+      c.id === id ? { ...c, ...partial } : c
+    )
+    saveConnections(newConnections)
+    const updatedConn = newConnections.find(c => c.id === id)
+    set({
+      connections: newConnections,
+      ...(get().activeId === id
+        ? { client: buildClientFromConnection(updatedConn) }
+        : {}),
     })
   },
 }))
