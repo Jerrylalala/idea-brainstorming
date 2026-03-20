@@ -8,10 +8,10 @@ import type { SessionItem } from '@/types/session';
 export function SessionListPane() {
   const { sessions, activeSessionId, activeFilter, setActiveSessionId } = useSessionStore();
 
-  // 按 filter 过滤，null 表示显示全部
+  // 按 filter 过滤，null 表示显示全部（默认隐藏 archived）
   const filtered = activeFilter
     ? sessions.filter((s) => s.status === activeFilter)
-    : sessions;
+    : sessions.filter((s) => s.status !== 'archived');
 
   const today = filtered.filter((s) => s.group === 'TODAY');
   const yesterday = filtered.filter((s) => s.group === 'YESTERDAY');

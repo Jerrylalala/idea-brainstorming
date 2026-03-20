@@ -14,11 +14,11 @@ tsconfig.tsbuildinfo
 .env.test.local
 .env.production.local
 
-# User data & conversations
-data/
-conversations/
-sessions/
-chats/
+# User data & conversations (only root-level dirs, not src/data/)
+/data/
+/conversations/
+/sessions/
+/chats/
 *.db
 *.sqlite
 *.sqlite3

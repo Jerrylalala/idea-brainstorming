@@ -15,6 +15,5 @@ export interface SessionItem {
   time: string
   group: SessionGroup
   status?: SessionStatus
-  isActive?: boolean
   canvasSnapshot?: CanvasSnapshot  // 画布快照，用于 session 切换时恢复
 }
