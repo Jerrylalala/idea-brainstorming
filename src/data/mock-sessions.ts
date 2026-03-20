@@ -7,7 +7,6 @@ export const mockSessions: SessionItem[] = [
         time: '7m',
         group: 'TODAY',
         status: 'todo',
-        isActive: true,
     },
     {
         id: 's2',

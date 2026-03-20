@@ -8,15 +8,23 @@ interface SessionState {
   sessions: SessionItem[]
   activeSessionId: string | null
   activeFilter: SessionStatus | null
+  pendingDeletion: SessionItem | null
+  _deleteTimer: ReturnType<typeof setTimeout> | null
   setActiveSessionId: (id: string) => void
   setFilter: (filter: SessionStatus | null) => void
   createSession: () => void
+  deleteSession: (id: string) => void
+  restoreSession: () => void
+  archiveSession: (id: string) => void
+  setSessionStatus: (id: string, status: SessionStatus) => void
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
   sessions: mockSessions,
-  activeSessionId: mockSessions.find((item) => item.isActive)?.id ?? null,
+  activeSessionId: mockSessions[0]?.id ?? null,
   activeFilter: null,
+  pendingDeletion: null,
+  _deleteTimer: null,
 
   setActiveSessionId: (id) => {
     const { activeSessionId, sessions } = get()
@@ -65,12 +73,64 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         newSession,
         ...sessions.map((item) => ({
           ...item,
-          isActive: false,
           ...(item.id === activeSessionId ? { canvasSnapshot: { nodes, edges } } : {}),
         })),
       ],
       activeSessionId: newSession.id,
       activeFilter: null,
     })
+  },
+
+  deleteSession: (id) => {
+    const { sessions, activeSessionId, _deleteTimer } = get()
+    const target = sessions.find((s) => s.id === id)
+    if (!target) return
+
+    const remaining = sessions.filter((s) => s.id !== id)
+
+    // 切换 active session 的后备逻辑
+    let newActiveId: string | null = activeSessionId
+    if (id === activeSessionId) {
+      const idx = sessions.findIndex((s) => s.id === id)
+      newActiveId = remaining[idx]?.id ?? remaining[idx - 1]?.id ?? null
+
+      if (newActiveId) {
+        const next = remaining.find((s) => s.id === newActiveId)
+        if (next?.canvasSnapshot) {
+          useCanvasStore.getState().loadSnapshot(next.canvasSnapshot)
+        } else {
+          useCanvasStore.getState().clearCanvas()
+        }
+      } else {
+        useCanvasStore.getState().clearCanvas()
+      }
+    }
+
+    if (_deleteTimer) clearTimeout(_deleteTimer)
+
+    const timer = setTimeout(() => {
+      set({ pendingDeletion: null, _deleteTimer: null })
+    }, 5000)
+
+    set({ sessions: remaining, activeSessionId: newActiveId, pendingDeletion: target, _deleteTimer: timer })
+  },
+
+  restoreSession: () => {
+    const { pendingDeletion, sessions, _deleteTimer } = get()
+    if (!pendingDeletion) return
+    if (_deleteTimer) clearTimeout(_deleteTimer)
+    set({ sessions: [pendingDeletion, ...sessions], pendingDeletion: null, _deleteTimer: null })
+  },
+
+  setSessionStatus: (id, status) => {
+    set((s) => ({
+      sessions: s.sessions.map((sess) =>
+        sess.id === id ? { ...sess, status } : sess
+      ),
+    }))
+  },
+
+  archiveSession: (id) => {
+    get().setSessionStatus(id, 'archived')
   },
 }))
