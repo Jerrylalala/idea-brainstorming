@@ -82,3 +82,148 @@
 1. `generateDirections` 的 prompt 设计：如何让 AI 输出结构化 JSON（title/summary/keywords）？
 2. 流式输出的错误处理：网络中断时如何优雅降级？
 3. Phase 2 的 Session 持久化：存 localStorage 还是后端？
+
+---
+
+## 六、续篇讨论（2026-03-18 派对模式第二轮）
+
+**参与：** 李明远（架构师）/ 张晓峰（开发者）/ 陈思琪（分析师）/ 钱效能（性能专家）
+
+---
+
+### 6.1 P0 Bug：AI 供应商 API Key 覆盖问题
+
+**根因分析：**
+
+`ai_config` 以单个扁平对象存入 localStorage。切换供应商时整个对象被替换，之前供应商的 `apiKey` 丢失。这直接导致：
+- 用户测试 DeepSeek → 填 KIMI → 切回 DeepSeek → 测试失败（apiKey 已被覆盖）
+- KIMI「不能用」很可能是误判，真正原因是 apiKey 被清空
+
+**确定方案（李明远 + 张晓峰共识）：**
+
+```
+// 旧结构（有问题）
+localStorage['ai_config'] = { provider, baseURL, apiKey, model }
+
+// 新结构（按供应商隔离）
+localStorage['ai_configs'] = {
+  deepseek:  { apiKey, model },
+  kimi:      { apiKey, model },
+  qwen:      { apiKey, model },
+  anthropic: { apiKey, model },
+  custom:    { apiKey, model, baseURL },
+}
+localStorage['ai_active_provider'] = 'deepseek'
+```
+
+**改动范围：** 仅 `src/canvas/lib/ai-config-store.ts`，`AIClient` Proxy 层不需要改。需要写迁移逻辑兼容旧格式。
+
+---
+
+### 6.2 模型选择功能设计
+
+**原则：** 仅使用官方文档中明确存在的模型 ID，不猜测。
+
+**预设模型列表（按官方文档）：**
+
+| 供应商 | 模型 ID | 说明 |
+|--------|---------|------|
+| DeepSeek | `deepseek-chat` | DeepSeek-V3（推荐） |
+| DeepSeek | `deepseek-reasoner` | DeepSeek-R1（推理） |
+| Kimi（月之暗面） | `kimi-latest` | 最新版（推荐） |
+| Kimi | `moonshot-v1-128k` | 128K 上下文 |
+| Kimi | `moonshot-v1-32k` | 32K 上下文 |
+| Kimi | `moonshot-v1-8k` | 8K 上下文 |
+| 阿里云百炼 | `qwen-max` | 最强 |
+| 阿里云百炼 | `qwen-plus` | 推荐 |
+| 阿里云百炼 | `qwen-turbo` | 快速 |
+| Anthropic | `claude-opus-4-6` | 最强 |
+| Anthropic | `claude-sonnet-4-6` | 推荐 |
+| Anthropic | `claude-haiku-4-5-20251001` | 快速 |
+| Custom | （自由输入） | 任意 OpenAI 兼容端点 |
+
+**UI 方案：** 选供应商后，model 字段自动变为下拉选择；custom 供应商保留文本输入。
+
+---
+
+### 6.3 Session ↔ Canvas 双向绑定（深化 Phase 2 方案）
+
+**根因：** `canvasStore` 是全局单例，`activeSessionId` 变化不触发画布内容切换。
+
+**方案（在 Phase 2 基础上具体化）：**
+
+```
+SessionItem 新增字段：
+  canvasSnapshot?: { nodes: CanvasNode[], edges: Edge[] }
+
+setActiveSessionId 的新行为：
+  1. 将当前画布序列化 → 保存到当前 session 的 snapshot
+  2. 加载目标 session 的 snapshot → 恢复到 canvasStore
+  3. 若目标 session 无 snapshot → 加载空画布
+
+createSession 的新行为：
+  1. 保存当前画布 snapshot
+  2. 创建新 session，初始化空画布
+  3. 激活新 session
+```
+
+**持久化：** 优先 `localStorage`（快速实现），key 格式 `canvas_snapshot_{sessionId}`。
+
+---
+
+### 6.4 AI 头脑风暴引导者模式
+
+**问题：** 当前 system prompt 没有定义 AI 的角色，导致 AI 直接输出答案而不是引导用户思考。
+
+**确定方案（陈思琪主导）：**
+
+`buildSystemPrompt` 增加两种模式：
+
+**头脑风暴模式（新增）：**
+```
+你是一位专业的头脑风暴引导者。
+当用户提出一个想法或意图时，你的任务不是给出答案，而是通过 3-5 个精准的开放式问题帮助用户深入思考。
+
+引导问题应覆盖：
+- 目标用户是谁？（越具体越好）
+- 核心痛点是什么？现有方案有什么不足？
+- 竞品如何做的？你的差异化在哪里？
+- 商业模式：自用还是出售？订阅还是买断？
+- 技术偏好：Web 端、App 还是两者？
+
+每次回复只问问题，不要提供建议或解决方案。用友好、简洁的语气。
+```
+
+**普通聊天模式（现有）：** 保持不变。
+
+**可选扩展：** `brainstorm` 节点类型（区别于 `chat` 节点）默认使用引导模式，节点右上角显示「🧠 引导模式」标识。
+
+---
+
+### 6.5 拖拽性能优化
+
+**现象：** 拖动节点时，边（Edge/线条）先更新位置，节点框体跟随稍慢，视觉上有分离感。
+
+**根因推断（钱效能）：**
+- SVG 元素（edges）渲染优先级高于 DOM 元素（节点）
+- ChatNode 内含大量消息内容，拖拽时触发整个节点重渲染
+
+**确定方案：**
+1. `ChatNode` 增加 `React.memo`，防止不必要的重渲染
+2. 拖拽时（`dragging` prop 为 true），ChatNode 渲染轻量骨架版本，隐藏消息列表
+3. 松手后恢复完整内容
+
+**优先级：** P2，先完成功能修复再优化体验。
+
+---
+
+### 6.6 更新后的优先级排序
+
+| 优先级 | 功能 | 文件 |
+|--------|------|------|
+| **P0** | API Key 按供应商隔离存储 | `ai-config-store.ts` |
+| **P0** | 模型选择下拉（官方文档预设） | `ai-config-store.ts` + `ai-settings-modal.tsx` |
+| **P0** | Session 切换联动画布 | `session-store.ts` + `canvas-store.ts` |
+| **P1** | AI 头脑风暴引导者 System Prompt | `canvas-store.ts` (`buildSystemPrompt`) |
+| **P1** | 左栏导航点击响应 | `left-nav-pane.tsx` |
+| **P2** | 拖拽性能（节点骨架 + React.memo） | `chat-node.tsx` |

@@ -1,200 +1,237 @@
-// src/components/ai-settings-modal.tsx — 完整替换
+// src/components/ai-settings-modal.tsx
 import { useState } from 'react'
-import { X, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
+import { X, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useUIStore } from '@/store/ui-store'
-import {
-  useAIConfigStore, PROVIDER_PRESETS, PROVIDER_MODELS,
-  buildClient, type ProviderConfig, type ProviderPreset,
-} from '@/canvas/lib/ai-config-store'
+import { useAIConnectionStore, type Connection, extractName } from '@/canvas/lib/ai-config-store'
+import { cn } from '@/lib/utils'
 
+// URL 校验（内联，不新建文件）
+function validateBaseURL(url: string): { valid: boolean; warning?: string; error?: string } {
+  if (!url) return { valid: false, error: '请填写 Base URL' }
+  let parsed: URL
+  try { parsed = new URL(url) } catch { return { valid: false, error: '不是合法的 URL 格式' } }
+  const { protocol, hostname, pathname } = parsed
+  if (protocol !== 'https:' && !(protocol === 'http:' && (hostname === 'localhost' || hostname === '127.0.0.1'))) {
+    return { valid: false, error: '必须使用 HTTPS（本地地址除外）' }
+  }
+  if (pathname.endsWith('/')) return { valid: true, warning: '建议去掉末尾斜杠' }
+  if (!pathname.endsWith('/v1') && !pathname.includes('/v1/')) return { valid: true, warning: '路径通常以 /v1 结尾，请确认' }
+  return { valid: true }
+}
+
+// 连接列表视图
+function ConnectionList({ onAdd }: { onAdd: () => void }) {
+  const { connections, activeId, setActiveId, removeConnection } = useAIConnectionStore()
+
+  return (
+    <div className="space-y-2">
+      {connections.length === 0 && (
+        <p className="py-4 text-center text-sm text-slate-400">暂无连接，点击下方添加</p>
+      )}
+      {connections.map(conn => (
+        <div key={conn.id} className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2">
+          <span className={cn('h-2 w-2 flex-shrink-0 rounded-full', {
+            'bg-emerald-500': conn.status === 'connected',
+            'bg-slate-300': conn.status === 'idle',
+            'bg-red-400': conn.status === 'error',
+          })} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-slate-800">{conn.name}</p>
+            <p className="truncate text-xs text-slate-400">
+              {conn.baseURL} · {conn.format === 'openai' ? 'OpenAI 格式' : 'Anthropic 格式'}
+            </p>
+          </div>
+          {activeId === conn.id
+            ? <span className="text-xs font-medium text-emerald-600">启用中</span>
+            : <button onClick={() => setActiveId(conn.id)} className="text-xs text-slate-500 hover:text-slate-800">启用</button>
+          }
+          <button
+            onClick={() => removeConnection(conn.id)}
+            className="text-slate-300 hover:text-red-400"
+            aria-label="删除连接"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ))}
+      <button
+        onClick={onAdd}
+        className="flex w-full items-center gap-2 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-500 hover:border-slate-400 hover:text-slate-700"
+      >
+        <Plus className="h-4 w-4" /> 添加新连接
+      </button>
+    </div>
+  )
+}
+
+// 添加连接表单
+function AddConnectionForm({ onBack }: { onBack: () => void }) {
+  const { addConnection } = useAIConnectionStore()
+  const [baseURL, setBaseURL] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const [model, setModel] = useState('')
+  const [name, setName] = useState('')
+  const [showApiKey, setShowApiKey] = useState(false)
+  const [sniffStatus, setSniffStatus] = useState<'idle' | 'sniffing' | 'ok' | 'error'>('idle')
+  const [sniffMsg, setSniffMsg] = useState('')
+
+  const urlValidation = validateBaseURL(baseURL)
+  const canAdd = urlValidation.valid && !!apiKey && !!model && sniffStatus !== 'sniffing'
+
+  async function handleAdd() {
+    if (!canAdd) return
+    setSniffStatus('sniffing')
+    setSniffMsg('')
+    try {
+      const res = await fetch('/api/sniff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey, baseURL, model }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error ?? '嗅探失败')
+
+      const conn: Connection = {
+        id: crypto.randomUUID(),
+        name: name.trim() || extractName(baseURL),
+        baseURL,
+        apiKey,
+        model,
+        format: data.format as 'openai' | 'anthropic',
+        status: 'connected',
+      }
+      addConnection(conn)
+      setSniffStatus('ok')
+      setSniffMsg(`已添加「${conn.name}」（${conn.format === 'openai' ? 'OpenAI 格式' : 'Anthropic 格式'}）`)
+      setTimeout(onBack, 1200)
+    } catch (e) {
+      setSniffStatus('error')
+      setSniffMsg(e instanceof Error ? e.message : '添加失败')
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <button onClick={onBack} className="text-sm text-slate-400 hover:text-slate-600">← 返回</button>
+        <h3 className="text-sm font-medium text-slate-700">添加新连接</h3>
+      </div>
+
+      {/* Base URL */}
+      <div>
+        <label className="mb-1.5 block text-sm font-medium text-slate-700">Base URL</label>
+        <input
+          type="text"
+          value={baseURL}
+          onChange={(e) => setBaseURL(e.target.value)}
+          placeholder="https://api.example.com/v1"
+          className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
+        />
+        {baseURL && urlValidation.error && (
+          <p className="mt-1 text-xs text-red-500">{urlValidation.error}</p>
+        )}
+        {baseURL && urlValidation.warning && (
+          <p className="mt-1 text-xs text-amber-500">{urlValidation.warning}</p>
+        )}
+      </div>
+
+      {/* API Key */}
+      <div>
+        <label className="mb-1.5 block text-sm font-medium text-slate-700">API Key</label>
+        <div className="relative">
+          <input
+            type={showApiKey ? 'text' : 'password'}
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="sk-xxxxxxxxxxxxxxxx"
+            className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 pr-9 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
+          />
+          <button
+            type="button"
+            onClick={() => setShowApiKey(!showApiKey)}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+          >
+            {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
+      </div>
+
+      {/* Model */}
+      <div>
+        <label className="mb-1.5 block text-sm font-medium text-slate-700">模型 ID</label>
+        <input
+          type="text"
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          placeholder="如 deepseek-chat、kimi-k2-5、claude-sonnet-4-6"
+          className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
+        />
+      </div>
+
+      {/* 连接名称（可选） */}
+      <div>
+        <label className="mb-1.5 block text-sm font-medium text-slate-700">
+          连接名称 <span className="font-normal text-slate-400">（可选，留空自动提取）</span>
+        </label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={baseURL ? extractName(baseURL) : '自动从域名提取'}
+          className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
+        />
+      </div>
+
+      {/* 状态反馈 */}
+      {sniffStatus === 'ok' && (
+        <div className="flex items-center gap-1.5 text-sm text-emerald-600">
+          <CheckCircle2 className="h-4 w-4" /> {sniffMsg}
+        </div>
+      )}
+      {sniffStatus === 'error' && (
+        <div className="flex items-center gap-1.5 text-sm text-red-500">
+          <AlertCircle className="h-4 w-4" /> {sniffMsg}
+        </div>
+      )}
+
+      {/* 添加按钮 */}
+      <Button
+        size="sm"
+        onClick={handleAdd}
+        disabled={!canAdd}
+        className="h-8 w-full rounded-lg"
+      >
+        {sniffStatus === 'sniffing' && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+        {sniffStatus === 'sniffing' ? '正在嗅探格式...' : '添加连接'}
+      </Button>
+      <p className="text-xs text-slate-400">点击「添加连接」将自动检测 API 格式（OpenAI / Anthropic），约需 3-10 秒</p>
+    </div>
+  )
+}
+
+// 主弹窗
 export function AISettingsModal() {
   const settingsOpen = useUIStore((s) => s.settingsOpen)
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen)
-  const { configs, activeProvider, updateProviderConfig, clearProviderConfig } = useAIConfigStore()
-
-  const initCfg = configs[activeProvider]
-  const [provider, setProvider] = useState<ProviderPreset>(activeProvider)
-  const [apiKey, setApiKey] = useState(initCfg?.apiKey ?? '')
-  const [baseURL, setBaseURL] = useState(initCfg?.baseURL ?? PROVIDER_PRESETS[activeProvider].baseURL)
-  const [model, setModel] = useState(initCfg?.model ?? PROVIDER_PRESETS[activeProvider].model)
-  const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
-  const [testMsg, setTestMsg] = useState('')
+  const [view, setView] = useState<'list' | 'add'>('list')
 
   if (!settingsOpen) return null
-
-  const isCustom = provider === 'custom'
-
-  function handleProviderChange(p: ProviderPreset) {
-    setProvider(p)
-    const existing = configs[p]
-    // 加载该供应商已保存的 apiKey（切换供应商不清空已有配置）
-    setApiKey(existing?.apiKey ?? '')
-    if (p !== 'custom') {
-      setBaseURL(PROVIDER_PRESETS[p].baseURL)
-      setModel(existing?.model ?? PROVIDER_PRESETS[p].model)
-    } else {
-      setBaseURL(existing?.baseURL ?? '')
-      setModel(existing?.model ?? '')
-    }
-    setTestStatus('idle')
-    setTestMsg('')
-  }
-
-  async function handleTest() {
-    if (!apiKey) return
-    setTestStatus('loading')
-    setTestMsg('')
-    const effectiveURL = isCustom ? baseURL : PROVIDER_PRESETS[provider].baseURL
-    const gen = buildClient({ provider, baseURL: effectiveURL, apiKey, model }).streamChat({
-      messages: [{ id: 'test', role: 'user', text: 'Hi', createdAt: Date.now() }],
-      sourceRefs: [],
-    })
-    try {
-      const first = await gen.next()
-      if (first.value?.type === 'error') throw new Error(first.value.error)
-      setTestStatus('ok')
-      setTestMsg('连接成功 ✓')
-    } catch (e) {
-      setTestStatus('error')
-      setTestMsg(e instanceof Error ? e.message : '连接失败')
-    } finally {
-      await gen.return(undefined)
-    }
-  }
-
-  function handleSave() {
-    const cfg: ProviderConfig = {
-      apiKey,
-      model,
-      ...(isCustom ? { baseURL } : {}),
-    }
-    updateProviderConfig(provider, cfg)
-    setSettingsOpen(false)
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="w-[480px] rounded-2xl bg-white p-6 shadow-xl">
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-slate-800">AI 配置</h2>
+          <h2 className="text-base font-semibold text-slate-800">我的 AI 连接</h2>
           <button onClick={() => setSettingsOpen(false)} className="rounded-lg p-1 hover:bg-slate-100">
             <X className="h-4 w-4 text-slate-500" />
           </button>
         </div>
 
-        <div className="space-y-4">
-          {/* Provider 选择 */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">Provider</label>
-            <select
-              value={provider}
-              onChange={(e) => handleProviderChange(e.target.value as ProviderPreset)}
-              className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
-            >
-              {(Object.keys(PROVIDER_PRESETS) as ProviderPreset[]).map((p) => (
-                <option key={p} value={p}>{PROVIDER_PRESETS[p].label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Base URL — 仅 custom 可编辑 */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">Base URL</label>
-            <input
-              type="text"
-              value={isCustom ? baseURL : PROVIDER_PRESETS[provider].baseURL}
-              onChange={(e) => isCustom && setBaseURL(e.target.value)}
-              readOnly={!isCustom}
-              placeholder="https://api.example.com/v1"
-              className={`h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300 ${isCustom ? 'bg-white' : 'bg-slate-50 text-slate-500 cursor-default'}`}
-            />
-            {!isCustom && (
-              <p className="mt-1 text-xs text-slate-400">预设 Provider 的地址已锁定，如需自定义请选择「自定义中转」</p>
-            )}
-          </div>
-
-          {/* API Key */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">API Key</label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="sk-xxxxxxxxxxxxxxxx"
-              className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-            />
-            <p className="mt-1 text-xs text-slate-400">
-              {configs[provider] ? '✓ 已保存此供应商的 Key' : '尚未保存此供应商的 Key'}
-            </p>
-          </div>
-
-          {/* Model — 预设供应商用下拉，custom 用文本框 */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">Model</label>
-            {isCustom ? (
-              <input
-                type="text"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder="model-name"
-                className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-              />
-            ) : (
-              <select
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
-              >
-                {PROVIDER_MODELS[provider].map((m) => (
-                  <option key={m.id} value={m.id}>{m.label}</option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          {/* 测试连接 */}
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleTest}
-              disabled={!apiKey || testStatus === 'loading'}
-              className="h-8 rounded-lg"
-            >
-              {testStatus === 'loading' && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-              测试连接
-            </Button>
-            {testStatus === 'ok' && (
-              <span className="flex items-center gap-1 text-sm text-emerald-600">
-                <CheckCircle2 className="h-3.5 w-3.5" /> {testMsg}
-              </span>
-            )}
-            {testStatus === 'error' && (
-              <span className="flex items-center gap-1 text-sm text-red-500">
-                <AlertCircle className="h-3.5 w-3.5" /> {testMsg}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* 底部按钮 */}
-        <div className="mt-6 flex justify-between">
-          <button
-            onClick={() => { clearProviderConfig(provider); setApiKey(''); setTestStatus('idle') }}
-            className="text-sm text-slate-400 hover:text-slate-600"
-          >
-            清除此供应商配置
-          </button>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setSettingsOpen(false)} className="h-8 rounded-lg">
-              取消
-            </Button>
-            <Button size="sm" onClick={handleSave} disabled={!apiKey || (!isCustom ? false : !baseURL) || !model} className="h-8 rounded-lg">
-              保存
-            </Button>
-          </div>
-        </div>
+        {view === 'list'
+          ? <ConnectionList onAdd={() => setView('add')} />
+          : <AddConnectionForm onBack={() => setView('list')} />
+        }
       </div>
     </div>
   )

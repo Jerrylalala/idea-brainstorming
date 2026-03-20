@@ -4,18 +4,20 @@ import {
   type NodeChange, type EdgeChange,
 } from '@xyflow/react'
 import type {
-  CanvasNode, CanvasEdge, ChatCanvasNode, DirectionCanvasNode, DirectionNodeData,
+  CanvasNode, CanvasEdge, ChatCanvasNode, DirectionCanvasNode,
   ChatMessage, SourceRef,
 } from '../types'
 import { createTextNode, createChatNode, createEdge, createDirectionNode, createIdeaNode } from '../lib/node-factory'
 import { aiClient } from '../lib/ai-client'
 import { buildSystemPrompt, buildMessages } from '../lib/prompt-builder'
-import { setPendingFocusNodes } from '../hooks/use-auto-layout'
 
 interface CanvasState {
   nodes: CanvasNode[]
   edges: CanvasEdge[]
   lastDeleted: { nodes: CanvasNode[]; edges: CanvasEdge[] } | null
+  pendingFocusNodeIds: string[]
+  setPendingFocusNodes: (parentId: string, childIds: string[]) => void
+  clearPendingFocusNodes: () => void
 
   // ReactFlow 回调
   onNodesChange: (changes: NodeChange<CanvasNode>[]) => void
@@ -43,10 +45,6 @@ interface CanvasState {
   confirmDirection: (nodeId: string) => void
   pendingDirection: (nodeId: string) => void
 
-  // 面板数据（派生状态）
-  confirmedDirections: () => DirectionNodeData[]
-  pendingDirections: () => DirectionNodeData[]
-
   // 面板操作
   removeFromPanel: (nodeId: string) => void
   moveToCategory: (nodeId: string, newStatus: 'confirmed' | 'pending' | 'idle') => void
@@ -69,6 +67,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
   edges: [],
   lastDeleted: null,
   layoutVersion: 0,
+  pendingFocusNodeIds: [],
+  setPendingFocusNodes: (parentId, childIds) => {
+    set({ pendingFocusNodeIds: [parentId, ...childIds] })
+  },
+  clearPendingFocusNodes: () => {
+    set({ pendingFocusNodeIds: [] })
+  },
 
   onNodesChange: (changes) => {
     const removes: NodeChange<CanvasNode>[] = []
@@ -345,27 +350,24 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
   searchIdea: async (idea) => {
     const myVersion = ++currentSearchVersion
 
-    // 1. 清除现有 direction/idea 节点（保留 text/chat）
-    set((s) => ({
-      nodes: s.nodes.filter(n => n.type !== 'direction' && n.type !== 'idea'),
-      edges: s.edges.filter(e => {
-        const sourceNode = s.nodes.find(n => n.id === e.source)
-        const targetNode = s.nodes.find(n => n.id === e.target)
-        return sourceNode?.type !== 'direction' && sourceNode?.type !== 'idea' &&
-               targetNode?.type !== 'direction' && targetNode?.type !== 'idea'
-      }),
-    }))
-
-    // 2. 在画布左侧创建 IdeaNode
+    // 1. 清除现有 direction/idea 节点（保留 text/chat），同时创建 IdeaNode 并设置生成状态
     const ideaNode = createIdeaNode({ x: 100, y: 300 }, idea)
-    set((s) => ({ nodes: [...s.nodes, ideaNode] }))
-
-    // 3. 设置生成状态
-    set((s) => ({
-      nodes: s.nodes.map(n =>
-        n.id === ideaNode.id ? { ...n, data: { ...n.data, status: 'generating' as const } } : n
-      ) as CanvasNode[],
-    }))
+    const ideaNodeGenerating = { ...ideaNode, data: { ...ideaNode.data, status: 'generating' as const } }
+    set((s) => {
+      const nodeTypeMap = new Map(s.nodes.map(n => [n.id, n.type]))
+      return {
+        nodes: [
+          ...s.nodes.filter(n => n.type !== 'direction' && n.type !== 'idea'),
+          ideaNodeGenerating,
+        ],
+        edges: s.edges.filter(e => {
+          const sourceType = nodeTypeMap.get(e.source)
+          const targetType = nodeTypeMap.get(e.target)
+          return sourceType !== 'direction' && sourceType !== 'idea' &&
+                 targetType !== 'direction' && targetType !== 'idea'
+        }),
+      }
+    })
 
     // 4. 调用 AI 生成方向
     try {
@@ -399,7 +401,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       }))
 
       // 8. 设置聚焦目标并执行自动布局
-      setPendingFocusNodes(ideaNode.id, directionNodes.map(n => n.id))
+      get().setPendingFocusNodes(ideaNode.id, directionNodes.map(n => n.id))
       get().layoutNodes()
     } catch (err) {
       if (myVersion !== currentSearchVersion) return
@@ -457,9 +459,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
 
     // 2. 构建 parentContext（遍历边找祖先链）
     const ancestorTitles: string[] = []
+    const visited = new Set<string>([node.id])
     let currentId: string | null = node.data.parentNodeId
 
     while (currentId) {
+      if (visited.has(currentId)) {
+        console.warn('[submitOpinion] 检测到祖先链循环引用，终止遍历')
+        break
+      }
+      visited.add(currentId)
       const parentNode = get().nodes.find(n => n.id === currentId)
       if (!parentNode) break
 
@@ -513,7 +521,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       }))
 
       // 6. 设置聚焦目标并执行自动布局
-      setPendingFocusNodes(nodeId, childNodes.map(c => c.id))
+      get().setPendingFocusNodes(nodeId, childNodes.map(c => c.id))
       get().layoutNodes()
     } catch {
       set((s) => ({
@@ -544,18 +552,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
           : n
       ) as CanvasNode[],
     }))
-  },
-
-  confirmedDirections: () => {
-    return get().nodes
-      .filter(n => n.type === 'direction' && n.data.status === 'confirmed')
-      .map(n => (n as DirectionCanvasNode).data)
-  },
-
-  pendingDirections: () => {
-    return get().nodes
-      .filter(n => n.type === 'direction' && n.data.status === 'pending')
-      .map(n => (n as DirectionCanvasNode).data)
   },
 
   removeFromPanel: (nodeId) => {

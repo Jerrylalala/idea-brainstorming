@@ -167,8 +167,8 @@ function makePanelNodesSelector() {
 // 右侧可收起决策抽屉
 export function DecisionDrawer() {
   const { rightDrawerOpen, toggleRightDrawer } = useUIStore();
-  // 每个组件实例创建独立的缓存选择器，useRef 保证只创建一次
-  const panelSelector = useRef(makePanelNodesSelector()).current;
+  // 每个组件实例创建独立的缓存选择器，useMemo 保证只创建一次
+  const panelSelector = useMemo(() => makePanelNodesSelector(), []);
   const directionNodes = useCanvasStore(panelSelector);
   const removeFromPanel = useCanvasStore((s) => s.removeFromPanel);
   const moveToCategory = useCanvasStore((s) => s.moveToCategory);
@@ -222,39 +222,59 @@ export function DecisionDrawer() {
     [directionNodes]
   );
 
-  // 初始化排序：从 localStorage 读取，或使用默认顺序
+  // 挂载时一次性初始化排序：从 localStorage 读取，或使用默认顺序
+  // 空依赖数组确保只在 mount 时执行一次，不会因 Map 引用变化覆盖拖拽排序结果
   useEffect(() => {
     const storedConfirmed = localStorage.getItem(STORAGE_KEY_CONFIRMED);
-    const storedPending = localStorage.getItem(STORAGE_KEY_PENDING);
-
+    const initialConfirmedIds = Array.from(confirmedNodesMap.keys());
     if (storedConfirmed) {
       try {
         const parsed = JSON.parse(storedConfirmed) as string[];
-        // 过滤掉已不存在的 nodeId
         const validOrder = parsed.filter(id => confirmedNodesMap.has(id));
-        // 添加新出现的 nodeId
-        const newIds = Array.from(confirmedNodesMap.keys()).filter(id => !validOrder.includes(id));
+        const newIds = initialConfirmedIds.filter(id => !validOrder.includes(id));
         setConfirmedOrder([...validOrder, ...newIds]);
       } catch {
-        setConfirmedOrder(Array.from(confirmedNodesMap.keys()));
+        setConfirmedOrder(initialConfirmedIds);
       }
     } else {
-      setConfirmedOrder(Array.from(confirmedNodesMap.keys()));
+      setConfirmedOrder(initialConfirmedIds);
     }
 
+    const storedPending = localStorage.getItem(STORAGE_KEY_PENDING);
+    const initialPendingIds = Array.from(pendingNodesMap.keys());
     if (storedPending) {
       try {
         const parsed = JSON.parse(storedPending) as string[];
         const validOrder = parsed.filter(id => pendingNodesMap.has(id));
-        const newIds = Array.from(pendingNodesMap.keys()).filter(id => !validOrder.includes(id));
+        const newIds = initialPendingIds.filter(id => !validOrder.includes(id));
         setPendingOrder([...validOrder, ...newIds]);
       } catch {
-        setPendingOrder(Array.from(pendingNodesMap.keys()));
+        setPendingOrder(initialPendingIds);
       }
     } else {
-      setPendingOrder(Array.from(pendingNodesMap.keys()));
+      setPendingOrder(initialPendingIds);
     }
-  }, [confirmedNodesMap, pendingNodesMap]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // mount only
+
+  // 同步新增/删除的节点，保留已有排序顺序
+  useEffect(() => {
+    setConfirmedOrder(prev => {
+      const currentIds = new Set(confirmedNodesMap.keys());
+      const filtered = prev.filter(id => currentIds.has(id));
+      const newIds = Array.from(currentIds).filter(id => !prev.includes(id));
+      return [...filtered, ...newIds];
+    });
+  }, [confirmedNodesMap]);
+
+  useEffect(() => {
+    setPendingOrder(prev => {
+      const currentIds = new Set(pendingNodesMap.keys());
+      const filtered = prev.filter(id => currentIds.has(id));
+      const newIds = Array.from(currentIds).filter(id => !prev.includes(id));
+      return [...filtered, ...newIds];
+    });
+  }, [pendingNodesMap]);
 
   // 保存排序到 localStorage
   useEffect(() => {

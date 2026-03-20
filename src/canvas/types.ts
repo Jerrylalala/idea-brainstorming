@@ -105,6 +105,6 @@ export type DirectionRequest = {
 }
 
 export interface AIClient {
-  streamChat(input: ChatRequest): AsyncGenerator<ChatChunk>
-  generateDirections(input: DirectionRequest): Promise<Direction[]>
+  streamChat(input: ChatRequest, signal?: AbortSignal): AsyncGenerator<ChatChunk>
+  generateDirections(input: DirectionRequest, signal?: AbortSignal): Promise<Direction[]>
 }
