@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Sparkles } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -9,6 +9,8 @@ import { useSessionStore } from '@/store/session-store'
 export function SearchBar() {
   const [value, setValue] = useState('')
   const [error, setError] = useState<string | null>(null)
+  // 标记搜索失败，防止 useEffect 在 isEmpty 变为 true 时清除错误提示
+  const justFailedRef = useRef(false)
   const searchIdea = useCanvasStore((s) => s.searchIdea)
   // 从 canvas 状态派生可见性，而非本地 isSubmitted 状态
   const isEmpty = useCanvasStore((s) => s.nodes.length === 0)
@@ -16,30 +18,40 @@ export function SearchBar() {
   const updateSessionTitle = useSessionStore((s) => s.updateSessionTitle)
 
   // 切换到空画布 session 时自动重置表单（避免残留上一个 session 的输入）
+  // justFailedRef 阻止搜索失败后清除错误提示（搜索失败也会触发 isEmpty → true）
   useEffect(() => {
     if (isEmpty) {
+      if (justFailedRef.current) {
+        justFailedRef.current = false
+        return
+      }
       setValue('')
       setError(null)
     }
   }, [isEmpty])
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     if (!value.trim()) return
     setError(null)
+    // 在 await 前快照 activeSessionId，防止 async 期间 session 切换导致标题写入错误 session
+    const sessionIdSnapshot = activeSessionId
     try {
       await searchIdea(value.trim())
       // 搜索成功后同步 session 标题（SearchBar 作为跨 store 桥接层，避免循环依赖）
-      if (activeSessionId) {
+      if (sessionIdSnapshot) {
         const raw = value.trim()
-        const title = raw.length > 20 ? raw.slice(0, 20) + '...' : raw
-        updateSessionTitle(activeSessionId, title)
+        // 使用 Array.from 截断，正确处理 Emoji 等 surrogate pair 字符
+        const chars = Array.from(raw)
+        const title = chars.length > 20 ? chars.slice(0, 20).join('') + '...' : raw
+        updateSessionTitle(sessionIdSnapshot, title)
       }
     } catch {
-      // 搜索失败：canvas-store 的 searchIdea 会移除 ideaNode，节点清空，
-      // isEmpty 变为 true，此处只需显示错误提示
+      // 搜索失败：canvas-store 移除 ideaNode，isEmpty 变为 true
+      // justFailedRef 阻止 useEffect 清除刚设置的错误提示
+      justFailedRef.current = true
       setError('探索失败，请重试')
     }
-  }
+  }, [value, searchIdea, activeSessionId, updateSessionTitle])
 
   return (
     <AnimatePresence>
