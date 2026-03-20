@@ -47,14 +47,31 @@ function ConnectionList({ onAdd }: { onAdd: () => void }) {
       })
       const data = await res.json() as { format?: string; error?: string }
       if (res.ok && !data.error && data.format) {
-        updateConnection(conn.id, { status: 'connected', format: data.format as 'openai' | 'anthropic' })
+        updateConnection(conn.id, {
+          status: 'connected',
+          format: data.format as 'openai' | 'anthropic',
+          lastVerifiedAt: Date.now(),
+          lastError: undefined,
+          lastErrorAt: undefined,
+        })
         setTestStates(s => ({ ...s, [conn.id]: 'ok' }))
       } else {
-        updateConnection(conn.id, { status: 'error' })
+        const errMsg = data.error ?? '连接验证失败'
+        updateConnection(conn.id, {
+          status: 'error',
+          lastVerifiedAt: Date.now(),
+          lastError: errMsg,
+          lastErrorAt: Date.now(),
+        })
         setTestStates(s => ({ ...s, [conn.id]: 'error' }))
       }
     } catch {
-      updateConnection(conn.id, { status: 'error' })
+      updateConnection(conn.id, {
+        status: 'error',
+        lastVerifiedAt: Date.now(),
+        lastError: '无法连接到 AI 服务，请检查网络和 URL',
+        lastErrorAt: Date.now(),
+      })
       setTestStates(s => ({ ...s, [conn.id]: 'error' }))
     }
     setTimeout(() => setTestStates(s => ({ ...s, [conn.id]: 'idle' })), 3000)
@@ -79,6 +96,11 @@ function ConnectionList({ onAdd }: { onAdd: () => void }) {
               <p className="truncate text-xs text-slate-400">
                 {conn.baseURL} · {conn.format === 'openai' ? 'OpenAI 格式' : 'Anthropic 格式'}
               </p>
+              {conn.lastError && (
+                <p className="truncate text-xs text-red-400" title={conn.lastError}>
+                  上次失败：{conn.lastError}
+                </p>
+              )}
             </div>
             <button
               onClick={() => handleTest(conn)}
@@ -125,11 +147,26 @@ function AddConnectionForm({ onBack }: { onBack: () => void }) {
   const [showApiKey, setShowApiKey] = useState(false)
   const [sniffStatus, setSniffStatus] = useState<'idle' | 'sniffing' | 'ok' | 'error'>('idle')
   const [sniffMsg, setSniffMsg] = useState('')
+  const [modelOptions, setModelOptions] = useState<string[]>([])
   const abortControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     return () => { abortControllerRef.current?.abort() }
   }, [])
+
+  async function fetchModels(bURL: string, key: string) {
+    try {
+      const res = await fetch('/api/models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseURL: bURL, apiKey: key }),
+      })
+      const data = await res.json() as { models?: string[]; error?: string }
+      if (res.ok && data.models) setModelOptions(data.models)
+    } catch {
+      // 拉取失败静默处理，保持 datalist 为空
+    }
+  }
 
   const urlValidation = validateBaseURL(baseURL)
   const canAdd = urlValidation.valid && !!apiKey && !!model && sniffStatus !== 'sniffing'
@@ -169,6 +206,9 @@ function AddConnectionForm({ onBack }: { onBack: () => void }) {
 
     const finalURL = successURL ?? baseURL
     const finalFormat = successFormat ?? 'openai'
+
+    // 后台拉取模型列表（不 await，不阻塞主流程）
+    if (successURL) fetchModels(finalURL, apiKey)
 
     const conn: Connection = {
       id: crypto.randomUUID(),
@@ -243,11 +283,15 @@ function AddConnectionForm({ onBack }: { onBack: () => void }) {
         <label className="mb-1.5 block text-sm font-medium text-slate-700">模型 ID</label>
         <input
           type="text"
+          list="model-datalist"
           value={model}
           onChange={(e) => setModel(e.target.value)}
           placeholder="如 deepseek-chat、kimi-k2-5、claude-sonnet-4-6"
           className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
         />
+        <datalist id="model-datalist">
+          {modelOptions.map(m => <option key={m} value={m} />)}
+        </datalist>
       </div>
 
       {/* 连接名称（可选） */}

@@ -228,4 +228,29 @@ app.post('/api/sniff', async (c) => {
   }
 })
 
+// === POST /api/models — 拉取模型列表 ===
+app.post('/api/models', async (c) => {
+  const body = await c.req.json<{ apiKey: string; baseURL: string }>()
+
+  if (!body.apiKey?.trim()) return c.json({ error: 'apiKey 不能为空' }, 400)
+  if (!body.baseURL?.trim() || !isAllowedBaseURL(body.baseURL)) {
+    return c.json({ error: 'Base URL 不允许（仅支持 HTTPS 公网地址）' }, 400)
+  }
+
+  try {
+    const modelsURL = body.baseURL.replace(/\/$/, '') + '/models'
+    const res = await fetch(modelsURL, {
+      headers: { Authorization: `Bearer ${body.apiKey}` },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) return c.json({ error: `模型列表请求失败（${res.status}）` }, 400)
+    const data = await res.json() as { data?: { id: string }[] }
+    const models = (data.data ?? []).map((m: { id: string }) => m.id).filter(Boolean)
+    return c.json({ models })
+  } catch (e) {
+    console.error('[api/models]', e instanceof Error ? e.message : e)
+    return c.json({ error: '无法获取模型列表' }, 400)
+  }
+})
+
 export default app
