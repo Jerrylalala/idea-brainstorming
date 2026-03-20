@@ -405,12 +405,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       get().layoutNodes()
     } catch (err) {
       if (myVersion !== currentSearchVersion) return
+      // 移除搜索失败时创建的 ideaNode，让画布回到空状态，SearchBar 自动重现
+      // 此时尚未创建任何 edge（directionNodes 在 try 块中），无需过滤 edges
       set((s) => ({
-        nodes: s.nodes.map(n =>
-          n.id === ideaNode.id ? { ...n, data: { ...n.data, status: 'idle' as const } } : n
-        ) as CanvasNode[],
+        nodes: s.nodes.filter(n => n.id !== ideaNode.id) as CanvasNode[],
       }))
-      throw err  // 让 SearchBar 感知错误，恢复搜索框
+      throw err
     }
   },
 

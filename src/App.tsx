@@ -1,3 +1,4 @@
+import { Toaster } from 'sonner';
 import { TopBar } from '@/components/top-bar';
 import { LeftNavPane } from '@/components/left-nav-pane';
 import { SessionListPane } from '@/components/session-list-pane';
@@ -16,6 +17,7 @@ export default function App() {
         <DecisionDrawer />
       </div>
       <AISettingsModal />
+      <Toaster position="bottom-center" richColors />
     </div>
   );
 }

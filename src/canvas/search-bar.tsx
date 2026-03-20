@@ -1,34 +1,64 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Sparkles } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useCanvasStore } from './store/canvas-store'
+import { useSessionStore } from '@/store/session-store'
 
 export function SearchBar() {
   const [value, setValue] = useState('')
-  const [isSubmitted, setIsSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // 标记搜索失败，防止 useEffect 在 isEmpty 变为 true 时清除错误提示
+  const justFailedRef = useRef(false)
   const searchIdea = useCanvasStore((s) => s.searchIdea)
+  // 从 canvas 状态派生可见性，而非本地 isSubmitted 状态
+  const isEmpty = useCanvasStore((s) => s.nodes.length === 0)
+  const activeSessionId = useSessionStore((s) => s.activeSessionId)
+  const updateSessionTitle = useSessionStore((s) => s.updateSessionTitle)
 
-  const handleSubmit = async () => {
+  // 切换到空画布 session 时自动重置表单（避免残留上一个 session 的输入）
+  // justFailedRef 阻止搜索失败后清除错误提示（搜索失败也会触发 isEmpty → true）
+  useEffect(() => {
+    if (isEmpty) {
+      if (justFailedRef.current) {
+        justFailedRef.current = false
+        return
+      }
+      setValue('')
+      setError(null)
+    }
+  }, [isEmpty])
+
+  const handleSubmit = useCallback(async () => {
     if (!value.trim()) return
-    setIsSubmitted(true)
     setError(null)
+    // 在 await 前快照 activeSessionId，防止 async 期间 session 切换导致标题写入错误 session
+    const sessionIdSnapshot = activeSessionId
     try {
       await searchIdea(value.trim())
+      // 搜索成功后同步 session 标题（SearchBar 作为跨 store 桥接层，避免循环依赖）
+      if (sessionIdSnapshot) {
+        const raw = value.trim()
+        // 使用 Array.from 截断，正确处理 Emoji 等 surrogate pair 字符
+        const chars = Array.from(raw)
+        const title = chars.length > 20 ? chars.slice(0, 20).join('') + '...' : raw
+        updateSessionTitle(sessionIdSnapshot, title)
+      }
     } catch {
-      setIsSubmitted(false)  // 恢复搜索框，允许重试
+      // 搜索失败：canvas-store 移除 ideaNode，isEmpty 变为 true
+      // justFailedRef 阻止 useEffect 清除刚设置的错误提示
+      justFailedRef.current = true
       setError('探索失败，请重试')
     }
-    // fitView 由 useAutoLayout 的 pendingFocusNodes 自动处理
-  }
+  }, [value, searchIdea, activeSessionId, updateSessionTitle])
 
   return (
     <AnimatePresence>
-      {!isSubmitted && (
+      {isEmpty && (
         <motion.div
-          className="fixed left-1/2 z-50 flex flex-col items-center pointer-events-none"
+          // 改为 absolute 定位，相对于画布容器（brainstorm-canvas.tsx 外层已是 relative）
+          className="absolute left-1/2 z-50 flex flex-col items-center pointer-events-none"
           style={{ top: '18%', transform: 'translateX(-50%)' }}
           exit={{
             opacity: 0,
@@ -54,26 +84,25 @@ export function SearchBar() {
             animate={{ width: 560, opacity: 1, scale: 1 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
           >
-          <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
-          <Input
-            placeholder="比如：我想开发一款营销软件..."
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSubmit()
-            }}
-            className="nodrag nokey border-0 bg-transparent px-0 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
-            disabled={isSubmitted}
-          />
-          <Button
-            size="sm"
-            className="h-7 rounded-full"
-            onClick={handleSubmit}
-            disabled={!value.trim()}
-          >
-            <Sparkles className="w-3 h-3 mr-1" />
-            探索
-          </Button>
+            <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
+            <Input
+              placeholder="比如：我想开发一款营销软件..."
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSubmit()
+              }}
+              className="nodrag nokey border-0 bg-transparent px-0 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
+            />
+            <Button
+              size="sm"
+              className="h-7 rounded-full"
+              onClick={handleSubmit}
+              disabled={!value.trim()}
+            >
+              <Sparkles className="w-3 h-3 mr-1" />
+              探索
+            </Button>
           </motion.div>
           {error && (
             <motion.p
