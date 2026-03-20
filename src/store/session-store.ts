@@ -11,6 +11,7 @@ interface SessionState {
   setActiveSessionId: (id: string) => void
   setFilter: (filter: SessionStatus | null) => void
   createSession: () => void
+  updateSessionTitle: (id: string, title: string) => void
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -72,5 +73,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       activeSessionId: newSession.id,
       activeFilter: null,
     })
+  },
+
+  updateSessionTitle: (id, title) => {
+    set((s) => ({
+      sessions: s.sessions.map((sess) =>
+        sess.id === id ? { ...sess, title } : sess
+      ),
+    }))
   },
 }))
