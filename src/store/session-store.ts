@@ -64,8 +64,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const newSession: SessionItem = {
       id: `session-${Date.now()}`,
       title: 'New chat',
-      time: 'now',
-      group: 'TODAY',
+      createdAt: new Date().toISOString(),
+      time: 'just now',
       status: 'todo',
     }
 
