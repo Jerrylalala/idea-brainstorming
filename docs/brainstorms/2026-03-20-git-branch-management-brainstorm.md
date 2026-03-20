@@ -217,10 +217,99 @@ gh pr create --base main
 ## 下一步行动
 
 - [x] 整改完成：PR #5 + PR #4 已合并到 main
-- [ ] 更新全局 `~/.claude/CLAUDE.md` 的 Git 章节（替换为本文"可直接复用的配置"第 1 条）
-- [ ] 配置全局 pre-push hook
-- [ ] 在 GitHub 给现有仓库设置 Branch Protection
+- [x] 更新全局 `~/.claude/CLAUDE.md` 的 Git 章节（替换为本文"可直接复用的配置"第 1 条）
+- [x] 配置全局 pre-push hook（`~/.githooks/pre-push` + `git config --global core.hooksPath ~/.githooks`）
+- [ ] 在 GitHub 给现有仓库设置 Branch Protection（每个仓库一次性操作）
 - [ ] 新项目启动时：遵循"复用流程"清单
+
+---
+
+## 跨项目复用指南（派对模式 R3 — 2026-03-20）
+
+**参与**：李明远（架构师）、张晓峰（开发者）、赵安全（安全专家）
+
+### 三个核心问题的结论
+
+#### Q1：公开 vs 私有仓库有什么区别？
+
+| 差异点 | 公开仓库 | 私有仓库（免费计划） |
+|--------|---------|-------------------|
+| Branch Protection 界面 | Rulesets（新界面，免费） | Branch protection rules（经典界面，免费） |
+| 安全扫描重要性 | ⚠️ 极重要，改公开前必须全量扫描 | 相对宽松，但 .env.local 仍须 gitignore |
+| 私 → 公改变时 | 必须运行安全扫描（包括 git 历史） | — |
+
+**黄金法则**：永远不要假设"私有时没问题改公开就没事"。提交历史里的密钥一旦公开，即使删除也可能被爬虫缓存。
+
+#### Q2：其他项目需要做哪些配置？
+
+**已全局生效，新项目不需要重复做的：**
+- ✅ `~/.claude/CLAUDE.md` — Claude 自动遵循 GitHub Flow 规范
+- ✅ `~/.githooks/pre-push` — 所有仓库 push 到 main 时自动拦截
+
+**每个新仓库需要单独做一次（2分钟）：**
+
+```
+公开仓库 → GitHub Settings → Rules → Rulesets → New branch ruleset
+  - Ruleset Name: protect-main
+  - Enforcement status: Active
+  - Target: main
+  - ✅ Require a pull request before merging（Required approvals: 0）
+  - ✅ Block force pushes
+
+私有仓库 → GitHub Settings → Branches → Branch protection rules → Add rule
+  - Branch name pattern: main
+  - ✅ Require a pull request before merging
+  - Required approvals: 0
+```
+
+**项目 CLAUDE.md 只在例外情况才需要写：**
+- npm 库需要维护多个已发布版本 → 写 `## Branch Strategy Override: Git Flow`
+- 否则留空，全局规则自动生效
+
+#### Q3：Claude 会自动检测吗？
+
+| 能力 | 自动/手动 | 说明 |
+|------|---------|------|
+| 检查当前分支，在 main 上时自动建功能分支 | ✅ 自动 | 写进 CLAUDE.md，每次改代码前触发 |
+| Commit 消息遵循 Conventional Commits | ✅ 自动 | 全局规则，不需要提醒 |
+| PR base 指向 main | ✅ 自动 | 默认行为 |
+| 安全扫描（检测密钥泄露） | 🔲 手动触发 | 问 Claude "扫一下有没有泄露" |
+| 检查提交历史是否都走了 PR | 🔲 手动触发 | 定期问 Claude 做复盘 |
+
+**主动拦截不依赖 Claude 的两道防线：**
+1. `pre-push hook` — 终端直接 `git push` 时拦截，不需要打开 Claude Code
+2. `GitHub Branch Protection` — 任何人想直接 merge 到 main，GitHub 服务端拒绝
+
+### 新项目启动清单（终版）
+
+```bash
+# 1. 初始化仓库
+git init && git remote add origin <url>
+
+# 2. 确认全局 hook 已生效（只需确认一次）
+git config --global core.hooksPath  # 应输出 ~/.githooks 或 /c/Users/xxx/.githooks
+
+# 3. 在 GitHub 设置 Branch Protection（每个新仓库一次）
+#    公开仓库 → Rulesets → protect-main
+#    私有仓库 → Branch protection rules → main
+
+# 4. 如果准备改为公开仓库，先做安全扫描
+#    直接问 Claude："请扫描一下仓库有没有泄露的密钥"
+
+# 5. 开始工作（每次）
+git checkout main && git pull
+git checkout -b feat/xxx
+# ... 开发 ...
+gh pr create --base main
+```
+
+### 安全扫描触发时机（习惯触发）
+
+| 时机 | 操作 |
+|------|------|
+| 私有仓库改公开前 | 问 Claude "扫一下有没有泄露" |
+| 新项目第一次 push 前 | 确认 .env.local 在 .gitignore 里 |
+| 月度复盘 | 检查最近提交是否都走了 PR |
 
 ---
 
