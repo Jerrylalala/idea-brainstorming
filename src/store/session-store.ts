@@ -17,6 +17,7 @@ interface SessionState {
   restoreSession: () => void
   archiveSession: (id: string) => void
   setSessionStatus: (id: string, status: SessionStatus) => void
+  updateSessionTitle: (id: string, title: string) => void
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -132,5 +133,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   archiveSession: (id) => {
     get().setSessionStatus(id, 'archived')
+  },
+
+  updateSessionTitle: (id, title) => {
+    set((s) => ({
+      sessions: s.sessions.map((sess) =>
+        sess.id === id ? { ...sess, title } : sess
+      ),
+    }))
   },
 }))
