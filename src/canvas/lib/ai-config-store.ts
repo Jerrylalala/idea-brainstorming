@@ -13,6 +13,9 @@ export interface Connection {
   model: string                     // 用户指定的实际使用模型
   format: 'openai' | 'anthropic'   // 自动嗅探结果
   status: 'connected' | 'idle' | 'error'  // 运行时状态，不持久化
+  lastVerifiedAt?: number           // 上次验证成功时间戳（ms），持久化
+  lastError?: string                // 上次失败脱敏消息，持久化
+  lastErrorAt?: number              // 上次失败时间戳（ms），持久化
 }
 
 export type ProviderPreset = 'deepseek' | 'kimi' | 'kimi-coding' | 'qwen' | 'anthropic' | 'custom'
@@ -177,6 +180,7 @@ interface AIConnectionStore {
   removeConnection: (id: string) => void
   setActiveId: (id: string) => void
   updateConnectionStatus: (id: string, status: Connection['status']) => void
+  updateConnection: (id: string, partial: Partial<Pick<Connection, 'baseURL' | 'format' | 'status' | 'lastVerifiedAt' | 'lastError' | 'lastErrorAt'>>) => void
 }
 
 const { connections: initConnections, activeId: initActiveId } = loadConnections()
@@ -222,4 +226,71 @@ export const useAIConnectionStore = create<AIConnectionStore>((set, get) => ({
       connections: get().connections.map(c => c.id === id ? { ...c, status } : c),
     })
   },
+
+  updateConnection: (id, partial) => {
+    if (!get().connections.some(c => c.id === id)) return
+    const newConnections = get().connections.map(c =>
+      c.id === id ? { ...c, ...partial } : c
+    )
+    saveConnections(newConnections)
+    const updatedConn = newConnections.find(c => c.id === id)
+    set({
+      connections: newConnections,
+      ...(get().activeId === id
+        ? { client: buildClientFromConnection(updatedConn) }
+        : {}),
+    })
+  },
 }))
+
+// 懒检查：store 加载时后台静默验证超期连接（24h）
+const LAZY_CHECK_INTERVAL = 24 * 60 * 60 * 1000
+
+function runLazyCheck() {
+  const { connections } = useAIConnectionStore.getState()
+  const stale = connections.filter(c => {
+    if (!c.apiKey) return false
+    return c.lastVerifiedAt === undefined || Date.now() - c.lastVerifiedAt > LAZY_CHECK_INTERVAL
+  })
+  if (stale.length === 0) return
+
+  Promise.allSettled(
+    stale.map(async (conn) => {
+      try {
+        const res = await fetch('/api/sniff', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiKey: conn.apiKey, baseURL: conn.baseURL, model: conn.model }),
+        })
+        const data = await res.json() as { format?: string; error?: string }
+        if (res.ok && !data.error && data.format) {
+          useAIConnectionStore.getState().updateConnection(conn.id, {
+            status: 'connected',
+            format: data.format as 'openai' | 'anthropic',
+            lastVerifiedAt: Date.now(),
+            lastError: undefined,
+            lastErrorAt: undefined,
+          })
+        } else {
+          const errMsg = data.error ?? '连接验证失败'
+          useAIConnectionStore.getState().updateConnection(conn.id, {
+            status: 'error',
+            lastVerifiedAt: Date.now(),
+            lastError: errMsg,
+            lastErrorAt: Date.now(),
+          })
+        }
+      } catch {
+        useAIConnectionStore.getState().updateConnection(conn.id, {
+          status: 'error',
+          lastVerifiedAt: Date.now(),
+          lastError: '无法连接到 AI 服务，请检查网络和 URL',
+          lastErrorAt: Date.now(),
+        })
+      }
+    })
+  )
+}
+
+// 延迟 1 秒启动，避免阻塞首屏渲染
+setTimeout(runLazyCheck, 1000)

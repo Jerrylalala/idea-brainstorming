@@ -1,5 +1,5 @@
 // src/components/ai-settings-modal.tsx
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { X, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useUIStore } from '@/store/ui-store'
@@ -16,45 +16,117 @@ function validateBaseURL(url: string): { valid: boolean; warning?: string; error
     return { valid: false, error: '必须使用 HTTPS（本地地址除外）' }
   }
   if (pathname.endsWith('/')) return { valid: true, warning: '建议去掉末尾斜杠' }
-  if (!pathname.endsWith('/v1') && !pathname.includes('/v1/')) return { valid: true, warning: '路径通常以 /v1 结尾，请确认' }
+  if (!pathname.endsWith('/v1') && !pathname.includes('/v1/')) return { valid: true, warning: '未检测到 /v1 路径，将自动尝试多个路径' }
   return { valid: true }
+}
+
+// 智能 URL 候选列表生成（仅当 URL 无路径时展开）
+function generateCandidates(rawURL: string): string[] {
+  try {
+    const { pathname } = new URL(rawURL)
+    if (pathname !== '/' && pathname !== '') return [rawURL]
+  } catch {
+    return [rawURL]
+  }
+  const base = rawURL.replace(/\/$/, '')
+  return [base + '/v1', base, base + '/api/v1', base + '/api']
 }
 
 // 连接列表视图
 function ConnectionList({ onAdd }: { onAdd: () => void }) {
-  const { connections, activeId, setActiveId, removeConnection } = useAIConnectionStore()
+  const { connections, activeId, setActiveId, removeConnection, updateConnection } = useAIConnectionStore()
+  const [testStates, setTestStates] = useState<Record<string, 'idle' | 'testing' | 'ok' | 'error'>>({})
+
+  async function handleTest(conn: Connection) {
+    setTestStates(s => ({ ...s, [conn.id]: 'testing' }))
+    try {
+      const res = await fetch('/api/sniff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: conn.apiKey, baseURL: conn.baseURL, model: conn.model }),
+      })
+      const data = await res.json() as { format?: string; error?: string }
+      if (res.ok && !data.error && data.format) {
+        updateConnection(conn.id, {
+          status: 'connected',
+          format: data.format as 'openai' | 'anthropic',
+          lastVerifiedAt: Date.now(),
+          lastError: undefined,
+          lastErrorAt: undefined,
+        })
+        setTestStates(s => ({ ...s, [conn.id]: 'ok' }))
+      } else {
+        const errMsg = data.error ?? '连接验证失败'
+        updateConnection(conn.id, {
+          status: 'error',
+          lastVerifiedAt: Date.now(),
+          lastError: errMsg,
+          lastErrorAt: Date.now(),
+        })
+        setTestStates(s => ({ ...s, [conn.id]: 'error' }))
+      }
+    } catch {
+      updateConnection(conn.id, {
+        status: 'error',
+        lastVerifiedAt: Date.now(),
+        lastError: '无法连接到 AI 服务，请检查网络和 URL',
+        lastErrorAt: Date.now(),
+      })
+      setTestStates(s => ({ ...s, [conn.id]: 'error' }))
+    }
+    setTimeout(() => setTestStates(s => ({ ...s, [conn.id]: 'idle' })), 3000)
+  }
 
   return (
     <div className="space-y-2">
       {connections.length === 0 && (
         <p className="py-4 text-center text-sm text-slate-400">暂无连接，点击下方添加</p>
       )}
-      {connections.map(conn => (
-        <div key={conn.id} className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2">
-          <span className={cn('h-2 w-2 flex-shrink-0 rounded-full', {
-            'bg-emerald-500': conn.status === 'connected',
-            'bg-slate-300': conn.status === 'idle',
-            'bg-red-400': conn.status === 'error',
-          })} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-slate-800">{conn.name}</p>
-            <p className="truncate text-xs text-slate-400">
-              {conn.baseURL} · {conn.format === 'openai' ? 'OpenAI 格式' : 'Anthropic 格式'}
-            </p>
+      {connections.map(conn => {
+        const ts = testStates[conn.id] ?? 'idle'
+        return (
+          <div key={conn.id} className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2">
+            <span className={cn('h-2 w-2 flex-shrink-0 rounded-full', {
+              'bg-emerald-500': conn.status === 'connected',
+              'bg-slate-300': conn.status === 'idle',
+              'bg-red-400': conn.status === 'error',
+            })} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-slate-800">{conn.name}</p>
+              <p className="truncate text-xs text-slate-400">
+                {conn.baseURL} · {conn.format === 'openai' ? 'OpenAI 格式' : 'Anthropic 格式'}
+              </p>
+              {conn.lastError && (
+                <p className="truncate text-xs text-red-400" title={conn.lastError}>
+                  上次失败：{conn.lastError}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => handleTest(conn)}
+              disabled={ts === 'testing'}
+              className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700 disabled:opacity-50"
+              aria-label="测试连接"
+            >
+              {ts === 'testing' && <Loader2 className="h-3 w-3 animate-spin" />}
+              {ts === 'ok' && <CheckCircle2 className="h-3 w-3 text-emerald-500" />}
+              {ts === 'error' && <AlertCircle className="h-3 w-3 text-red-400" />}
+              {ts === 'idle' && <span>测试</span>}
+            </button>
+            {activeId === conn.id
+              ? <span className="text-xs font-medium text-emerald-600">启用中</span>
+              : <button onClick={() => setActiveId(conn.id)} className="text-xs text-slate-500 hover:text-slate-800">启用</button>
+            }
+            <button
+              onClick={() => removeConnection(conn.id)}
+              className="text-slate-300 hover:text-red-400"
+              aria-label="删除连接"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
-          {activeId === conn.id
-            ? <span className="text-xs font-medium text-emerald-600">启用中</span>
-            : <button onClick={() => setActiveId(conn.id)} className="text-xs text-slate-500 hover:text-slate-800">启用</button>
-          }
-          <button
-            onClick={() => removeConnection(conn.id)}
-            className="text-slate-300 hover:text-red-400"
-            aria-label="删除连接"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      ))}
+        )
+      })}
       <button
         onClick={onAdd}
         className="flex w-full items-center gap-2 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-500 hover:border-slate-400 hover:text-slate-700"
@@ -75,6 +147,26 @@ function AddConnectionForm({ onBack }: { onBack: () => void }) {
   const [showApiKey, setShowApiKey] = useState(false)
   const [sniffStatus, setSniffStatus] = useState<'idle' | 'sniffing' | 'ok' | 'error'>('idle')
   const [sniffMsg, setSniffMsg] = useState('')
+  const [modelOptions, setModelOptions] = useState<string[]>([])
+  const abortControllerRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    return () => { abortControllerRef.current?.abort() }
+  }, [])
+
+  async function fetchModels(bURL: string, key: string) {
+    try {
+      const res = await fetch('/api/models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseURL: bURL, apiKey: key }),
+      })
+      const data = await res.json() as { models?: string[]; error?: string }
+      if (res.ok && data.models) setModelOptions(data.models)
+    } catch {
+      // 拉取失败静默处理，保持 datalist 为空
+    }
+  }
 
   const urlValidation = validateBaseURL(baseURL)
   const canAdd = urlValidation.valid && !!apiKey && !!model && sniffStatus !== 'sniffing'
@@ -83,32 +175,61 @@ function AddConnectionForm({ onBack }: { onBack: () => void }) {
     if (!canAdd) return
     setSniffStatus('sniffing')
     setSniffMsg('')
-    try {
-      const res = await fetch('/api/sniff', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey, baseURL, model }),
-      })
-      const data = await res.json()
-      if (!res.ok || data.error) throw new Error(data.error ?? '嗅探失败')
 
-      const conn: Connection = {
-        id: crypto.randomUUID(),
-        name: name.trim() || extractName(baseURL),
-        baseURL,
-        apiKey,
-        model,
-        format: data.format as 'openai' | 'anthropic',
-        status: 'connected',
+    const ac = new AbortController()
+    abortControllerRef.current = ac
+
+    const candidates = generateCandidates(baseURL)
+    let successURL: string | null = null
+    let successFormat: 'openai' | 'anthropic' | null = null
+
+    for (const candidate of candidates) {
+      setSniffMsg(`正在探测 ${candidate}...`)
+      try {
+        const res = await fetch('/api/sniff', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiKey, baseURL: candidate, model }),
+          signal: ac.signal,
+        })
+        const data = await res.json() as { format?: string; error?: string }
+        if (res.ok && !data.error && data.format) {
+          successURL = candidate
+          successFormat = data.format as 'openai' | 'anthropic'
+          break
+        }
+      } catch (e) {
+        if ((e as Error).name === 'AbortError') return
+        // 继续尝试下一个候选
       }
-      addConnection(conn)
-      setSniffStatus('ok')
-      setSniffMsg(`已添加「${conn.name}」（${conn.format === 'openai' ? 'OpenAI 格式' : 'Anthropic 格式'}）`)
-      setTimeout(onBack, 1200)
-    } catch (e) {
-      setSniffStatus('error')
-      setSniffMsg(e instanceof Error ? e.message : '添加失败')
     }
+
+    const finalURL = successURL ?? baseURL
+    const finalFormat = successFormat ?? 'openai'
+
+    // 后台拉取模型列表（不 await，不阻塞主流程）
+    if (successURL) fetchModels(finalURL, apiKey)
+
+    const conn: Connection = {
+      id: crypto.randomUUID(),
+      name: name.trim() || extractName(finalURL),
+      baseURL: finalURL,
+      apiKey,
+      model,
+      format: finalFormat,
+      status: 'connected',
+    }
+    addConnection(conn)
+
+    if (successURL) {
+      setSniffStatus('ok')
+      const corrected = successURL !== baseURL ? `（已自动修正为 ${successURL}）` : ''
+      setSniffMsg(`已添加「${conn.name}」（${finalFormat === 'openai' ? 'OpenAI 格式' : 'Anthropic 格式'}）${corrected}`)
+    } else {
+      setSniffStatus('error')
+      setSniffMsg(`无法验证连接，已保存「${conn.name}」，请确认 URL 和 API Key 是否正确`)
+    }
+    setTimeout(onBack, 1800)
   }
 
   return (
@@ -162,11 +283,15 @@ function AddConnectionForm({ onBack }: { onBack: () => void }) {
         <label className="mb-1.5 block text-sm font-medium text-slate-700">模型 ID</label>
         <input
           type="text"
+          list="model-datalist"
           value={model}
           onChange={(e) => setModel(e.target.value)}
           placeholder="如 deepseek-chat、kimi-k2-5、claude-sonnet-4-6"
           className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
         />
+        <datalist id="model-datalist">
+          {modelOptions.map(m => <option key={m} value={m} />)}
+        </datalist>
       </div>
 
       {/* 连接名称（可选） */}
@@ -203,9 +328,9 @@ function AddConnectionForm({ onBack }: { onBack: () => void }) {
         className="h-8 w-full rounded-lg"
       >
         {sniffStatus === 'sniffing' && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-        {sniffStatus === 'sniffing' ? '正在嗅探格式...' : '添加连接'}
+        {sniffStatus === 'sniffing' ? (sniffMsg || '正在探测...') : '添加连接'}
       </Button>
-      <p className="text-xs text-slate-400">点击「添加连接」将自动检测 API 格式（OpenAI / Anthropic），约需 3-10 秒</p>
+      <p className="text-xs text-slate-400">将自动尝试多个路径（/v1、/api 等），找到可用的为止</p>
     </div>
   )
 }
