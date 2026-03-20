@@ -219,7 +219,13 @@ gh pr create --base main
 - [x] 整改完成：PR #5 + PR #4 已合并到 main
 - [x] 更新全局 `~/.claude/CLAUDE.md` 的 Git 章节（替换为本文"可直接复用的配置"第 1 条）
 - [x] 配置全局 pre-push hook（`~/.githooks/pre-push` + `git config --global core.hooksPath ~/.githooks`）
-- [ ] 在 GitHub 给现有仓库设置 Branch Protection（每个仓库一次性操作）
+- [x] 添加 `~/.githooks/pre-commit`：阻止在 main/master 上直接 commit + gitleaks 密钥扫描（有则用 gitleaks，否则正则兜底）
+- [x] 添加 `~/.githooks/commit-msg`：校验 Conventional Commits 格式（强制，不再只是文档规范）
+- [x] 创建 `~/scripts/audit-repos.sh`：枚举所有 GitHub 仓库并检查 Branch Protection 状态
+- [x] 创建 `~/scripts/sync-repos.sh`：批量为缺少 Branch Protection 的仓库补齐保护规则（支持 `--dry-run`）
+- [x] 在 `~/.bashrc` 中添加 `audit-repos` 和 `sync-repos` 别名
+- [ ] 在 GitHub 给现有仓库设置 Branch Protection（运行 `sync-repos` 或手动）
+- [ ] 安装 gitleaks：`winget install gitleaks`（pre-commit hook 有兜底正则，gitleaks 使扫描更精准）
 - [ ] 新项目启动时：遵循"复用流程"清单
 
 ---
