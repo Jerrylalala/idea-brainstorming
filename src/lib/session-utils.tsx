@@ -1,3 +1,37 @@
+import type { SessionStatus } from '@/types/session'
+
+// ─── Status 颜色配置（单一来源，三处复用：菜单 / session 行 / 侧边栏）───
+
+export const STATUS_CONFIG: Record<
+  SessionStatus,
+  { label: string; color: string; filled: boolean }
+> = {
+  backlog:        { label: 'Backlog',      color: '#94a3b8', filled: false },
+  todo:           { label: 'Todo',         color: '#94a3b8', filled: false },
+  'needs-review': { label: 'Needs Review', color: '#f97316', filled: true  },
+  done:           { label: 'Done',         color: '#8b5cf6', filled: true  },
+  archived:       { label: 'Archived',     color: '#94a3b8', filled: false },
+}
+
+/** 状态圆圈图标，空心或实心，颜色与 STATUS_CONFIG 一致 */
+export function StatusDot({ status }: { status: SessionStatus }) {
+  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.backlog
+  return (
+    <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+      <svg viewBox="0 0 12 12" width="10" height="10">
+        <circle
+          cx="6" cy="6" r="4.5"
+          fill={cfg.filled ? cfg.color : 'none'}
+          stroke={cfg.color}
+          strokeWidth="1.5"
+        />
+      </svg>
+    </span>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 /** 将分组标签定义为常量，避免拼写错误 */
 export const SESSION_GROUP = {
   TODAY: 'TODAY',

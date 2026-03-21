@@ -17,6 +17,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@hono/node-server": "^1.19.11",
     "@radix-ui/react-context-menu": "^2.2.16",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-scroll-area": "^1.2.2",
     "@radix-ui/react-slot": "^1.1.1",
     "@radix-ui/react-tabs": "^1.1.2",
