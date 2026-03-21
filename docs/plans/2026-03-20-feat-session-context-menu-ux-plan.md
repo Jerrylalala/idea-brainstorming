@@ -53,7 +53,7 @@ npm install sonner
 
 **文件**：`src/types/session.ts`
 **操作**：
-- [ ] 删除 `isActive?: boolean` 这一行
+- [x] 删除 `isActive?: boolean` 这一行
 
 ```ts
 // 删除前
@@ -70,11 +70,11 @@ export interface SessionItem {
 
 **文件**：`src/data/mock-sessions.ts`
 **操作**：
-- [ ] 删除 s1 的 `isActive: true`
+- [x] 删除 s1 的 `isActive: true`
 
 **文件**：`src/store/session-store.ts`
 **操作**：
-- [ ] 修改 `activeSessionId` 初始化逻辑
+- [x] 修改 `activeSessionId` 初始化逻辑
 
 ```ts
 // 修改前
@@ -85,7 +85,7 @@ activeSessionId: mockSessions[0]?.id ?? null,
 ```
 
 **验证**：
-- [ ] `npm run dev` 无 TS 报错，页面正常加载，s1 仍为激活 session
+- [x] `npm run dev` 无 TS 报错，页面正常加载，s1 仍为激活 session
 
 ---
 
@@ -93,7 +93,7 @@ activeSessionId: mockSessions[0]?.id ?? null,
 
 **文件**：`src/components/session-list-pane.tsx:20`
 **操作**：
-- [ ] 修改 `filtered` 计算逻辑
+- [x] 修改 `filtered` 计算逻辑
 
 ```ts
 // 修改前
@@ -108,7 +108,7 @@ const filtered = activeFilter
 ```
 
 **验证**：
-- [ ] All Sessions 不再显示 s5（archived），点击左侧 Archived 筛选后 s5 重新出现
+- [x] All Sessions 不再显示 s5（archived），点击左侧 Archived 筛选后 s5 重新出现
 
 ---
 
@@ -118,8 +118,8 @@ const filtered = activeFilter
 
 **文件**：`src/store/session-store.ts`
 **操作**：
-- [ ] `SessionState` interface 新增字段和方法签名（同步完成，不分步）
-- [ ] 实现全部 5 个新 action
+- [x] `SessionState` interface 新增字段和方法签名（同步完成，不分步）
+- [x] 实现全部 5 个新 action
 
 ```ts
 // SessionState interface 新增（与实现一起写，不要先写接口）
@@ -204,19 +204,19 @@ archiveSession: (id) => {
 ```
 
 **验证**：
-- [ ] TypeScript 无报错
-- [ ] 调用 `deleteSession('s2')` → s2 从列表消失，`pendingDeletion` 有值，5 秒后自动变 null
-- [ ] 调用 `restoreSession()` → s2 恢复，timer 取消
-- [ ] Vite HMR 热更新后，store 状态正常（不出现 session 卡在 pending 的问题）
+- [x] TypeScript 无报错
+- [x] 调用 `deleteSession('s2')` → s2 从列表消失，`pendingDeletion` 有值，5 秒后自动变 null
+- [x] 调用 `restoreSession()` → s2 恢复，timer 取消
+- [x] Vite HMR 热更新后，store 状态正常（不出现 session 卡在 pending 的问题）
 
 ---
 
 ### Task 4：安装 shadcn ContextMenu + sonner + 创建 SessionContextMenu 组件
 
 **操作**：
-- [ ] 运行 `npx shadcn@latest add context-menu`（生成 `src/components/ui/context-menu.tsx`）
-- [ ] 运行 `npm install sonner`
-- [ ] 在 `src/App.tsx` 或根布局中添加 `<Toaster />` （sonner）
+- [x] 运行 `npx shadcn@latest add context-menu`（生成 `src/components/ui/context-menu.tsx`）
+- [x] 运行 `npm install sonner`
+- [x] 在 `src/App.tsx` 或根布局中添加 `<Toaster />` （sonner）
 
 ```tsx
 // src/App.tsx 顶部添加
@@ -226,7 +226,7 @@ import { Toaster } from 'sonner'
 <Toaster position="bottom-center" richColors />
 ```
 
-- [ ] 新建 `src/components/session-context-menu.tsx`
+- [x] 新建 `src/components/session-context-menu.tsx`
 
 ```tsx
 // src/components/session-context-menu.tsx
@@ -321,8 +321,8 @@ export function SessionContextMenu({ session, onRename, children }: SessionConte
 ```
 
 **验证**：
-- [ ] TypeScript 无报错
-- [ ] `npm run dev` 正常运行
+- [x] TypeScript 无报错
+- [x] `npm run dev` 正常运行
 
 ---
 
@@ -332,9 +332,9 @@ export function SessionContextMenu({ session, onRename, children }: SessionConte
 
 **文件**：`src/components/session-list-pane.tsx`
 **操作**：
-- [ ] 添加 `renamingId` 和 hover 状态
-- [ ] 用 `SessionContextMenu` 包裹每个 session button
-- [ ] `MoreHorizontal` 按钮改为 hover 显示并触发同一菜单
+- [x] 添加 `renamingId` 和 hover 状态
+- [x] 用 `SessionContextMenu` 包裹每个 session button
+- [x] `MoreHorizontal` 按钮改为 hover 显示并触发同一菜单
 
 ```tsx
 import { useState, useRef } from 'react'
@@ -419,10 +419,10 @@ const [renameValue, setRenameValue] = useState('')
 ```
 
 **验证**：
-- [ ] 右键 session 弹出菜单（6 项结构）
-- [ ] hover 时右侧显示 `...` 按钮（视觉提示，右键即可操作，无需点击 `...`）
-- [ ] 双击 session 标题进入编辑模式，Enter 保存，Esc 取消
-- [ ] 空标题按 Enter → 不保存，退出编辑
+- [x] 右键 session 弹出菜单（6 项结构）
+- [x] hover 时右侧显示 `...` 按钮（视觉提示，右键即可操作，无需点击 `...`）
+- [x] 双击 session 标题进入编辑模式，Enter 保存，Esc 取消
+- [x] 空标题按 Enter → 不保存，退出编辑
 
 ---
 
@@ -430,7 +430,7 @@ const [renameValue, setRenameValue] = useState('')
 
 **文件**：`src/components/session-list-pane.tsx`
 **操作**：
-- [ ] 替换现有 `filtered.length === 0` 的判断逻辑，细化为 3 个场景
+- [x] 替换现有 `filtered.length === 0` 的判断逻辑，细化为 3 个场景
 
 ```tsx
 const renderEmptyState = () => {
@@ -465,8 +465,8 @@ const renderEmptyState = () => {
 ```
 
 **验证**：
-- [ ] 新建项目无 session 时显示引导
-- [ ] 点击 Done 过滤但无 Done session 时显示提示
+- [x] 新建项目无 session 时显示引导
+- [x] 点击 Done 过滤但无 Done session 时显示提示
 
 ---
 
@@ -482,8 +482,8 @@ const renderEmptyState = () => {
 
 **文件**：`src/types/session.ts`
 **操作**：
-- [ ] 删除 `SessionGroup` 类型
-- [ ] 修改 `SessionItem`：用 `createdAt` 替换 `group`
+- [x] 删除 `SessionGroup` 类型
+- [x] 修改 `SessionItem`：用 `createdAt` 替换 `group`
 
 ```ts
 // 删除整行：
@@ -501,7 +501,7 @@ export interface SessionItem {
 ```
 
 **验证**：
-- [ ] TypeScript 报出所有用到 `group` 字段的地方（这些是下一个 task 要修的）
+- [x] TypeScript 报出所有用到 `group` 字段的地方（这些是下一个 task 要修的）
 
 ---
 
@@ -570,8 +570,8 @@ export function formatSessionTime(createdAt: string): string {
 ```
 
 **验证**：
-- [ ] `getSessionGroup(new Date().toISOString())` → `'TODAY'`
-- [ ] `getSessionGroup` 用昨天 23:58 的时间戳 → `'YESTERDAY'`（而不是 `'TODAY'`）
+- [x] `getSessionGroup(new Date().toISOString())` → `'TODAY'`
+- [x] `getSessionGroup` 用昨天 23:58 的时间戳 → `'YESTERDAY'`（而不是 `'TODAY'`）
 
 ---
 
@@ -579,7 +579,7 @@ export function formatSessionTime(createdAt: string): string {
 
 **文件**：`src/data/mock-sessions.ts`
 **操作**：
-- [ ] 替换 `group` 字段为 `createdAt`
+- [x] 替换 `group` 字段为 `createdAt`
 
 ```ts
 const now = new Date()
@@ -606,7 +606,7 @@ export const mockSessions: SessionItem[] = [
 
 **文件**：`src/store/session-store.ts`
 **操作**：
-- [ ] 修改 `createSession()`，用 `new Date().toISOString()` 替代 `group: 'TODAY'`
+- [x] 修改 `createSession()`，用 `new Date().toISOString()` 替代 `group: 'TODAY'`
 
 ```ts
 const newSession: SessionItem = {
@@ -619,7 +619,7 @@ const newSession: SessionItem = {
 ```
 
 **验证**：
-- [ ] TypeScript 无 `group` 相关报错
+- [x] TypeScript 无 `group` 相关报错
 
 ---
 
@@ -629,7 +629,7 @@ const newSession: SessionItem = {
 
 **文件**：`src/components/session-list-pane.tsx`
 **操作**：
-- [ ] 用 `getSessionGroup` 替代 `session.group` 做分组，不加折叠逻辑
+- [x] 用 `getSessionGroup` 替代 `session.group` 做分组，不加折叠逻辑
 
 ```tsx
 import { useMemo } from 'react'
@@ -671,8 +671,8 @@ const renderGroup = (title: string, items: SessionItem[]) => (
 ```
 
 **验证**：
-- [ ] 分组按 TODAY/YESTERDAY/THIS WEEK 等正确显示
-- [ ] 新建 session 次日刷新后显示在 YESTERDAY（不再永久 TODAY）
+- [x] 分组按 TODAY/YESTERDAY/THIS WEEK 等正确显示
+- [x] 新建 session 次日刷新后显示在 YESTERDAY（不再永久 TODAY）
 
 ---
 
@@ -682,7 +682,7 @@ const renderGroup = (title: string, items: SessionItem[]) => (
 
 **文件**：`src/store/ui-store.ts`
 **操作**：
-- [ ] 添加搜索状态（无需 `collapsedGroups`）
+- [x] 添加搜索状态（无需 `collapsedGroups`）
 
 ```ts
 searchQuery: '',
@@ -693,7 +693,7 @@ setSearchVisible: (v) => set({ isSearchVisible: v, ...(!v && { searchQuery: '' }
 
 **文件**：`src/components/session-list-pane.tsx`
 **操作**：
-- [ ] 在**文件顶层**（组件外）定义 `HighlightedTitle` 和 `escapeRegExp`
+- [x] 在**文件顶层**（组件外）定义 `HighlightedTitle` 和 `escapeRegExp`
 
 ```tsx
 // 文件顶层，组件函数之外定义
@@ -722,14 +722,14 @@ function HighlightedTitle({ title, query }: { title: string; query: string }) {
 }
 ```
 
-- [ ] `filtered` 加入 `searchQuery` AND 逻辑
-- [ ] 搜索框 UI（Ctrl+K 触发，Esc 收起）
-- [ ] 搜索无结果的 Empty State
+- [x] `filtered` 加入 `searchQuery` AND 逻辑
+- [x] 搜索框 UI（Ctrl+K 触发，Esc 收起）
+- [x] 搜索无结果的 Empty State
 
 **验证**：
-- [ ] 搜索 `"chat"` → 只显示匹配 session，匹配字符高亮
-- [ ] 搜索 `"(test)"` → 不崩溃（escapeRegExp 生效）
-- [ ] Ctrl+K 展开搜索框，Esc 清空并收起
+- [x] 搜索 `"chat"` → 只显示匹配 session，匹配字符高亮
+- [x] 搜索 `"(test)"` → 不崩溃（escapeRegExp 生效）
+- [x] Ctrl+K 展开搜索框，Esc 清空并收起
 
 ---
 
@@ -822,17 +822,17 @@ export function useSessionKeyboard({
 ```
 
 **文件**：`src/store/ui-store.ts`
-- [ ] 添加 `focusedSessionId: string | null` + `setFocusedSessionId`
+- [x] 添加 `focusedSessionId: string | null` + `setFocusedSessionId`
 
 **文件**：`src/components/session-list-pane.tsx`
-- [ ] 调用 `useSessionKeyboard`，绑定到根 div 的 `onKeyDown`
-- [ ] 根 div 加 `tabIndex={0}`
-- [ ] session 条目加焦点样式 `focusedSessionId === session.id && 'ring-2 ring-violet-400 ring-inset'`
+- [x] 调用 `useSessionKeyboard`，绑定到根 div 的 `onKeyDown`
+- [x] 根 div 加 `tabIndex={0}`
+- [x] session 条目加焦点样式 `focusedSessionId === session.id && 'ring-2 ring-violet-400 ring-inset'`
 
 **验证**：
-- [ ] ↑↓ 导航不切换 canvas（`focusedSessionId` 变化，canvas 不变）
-- [ ] Enter 激活，F2 重命名，Delete 触发 Toast，Esc 逐层取消
-- [ ] Ctrl+K 聚焦搜索框
+- [x] ↑↓ 导航不切换 canvas（`focusedSessionId` 变化，canvas 不变）
+- [x] Enter 激活，F2 重命名，Delete 触发 Toast，Esc 逐层取消
+- [x] Ctrl+K 聚焦搜索框
 
 ---
 
@@ -840,27 +840,27 @@ export function useSessionKeyboard({
 
 ### P0（右键菜单 PR）—— 8 个 Task
 
-- [ ] 右键弹出 6 项菜单：Rename / Status▶ / Archive / Delete
-- [ ] Status 子菜单显示 4 个选项，当前 status 有 ✓ 标记
-- [ ] Delete 后 Undo Toast，5 秒内可撤销
-- [ ] 删除当前激活 session → 自动切换到下一个（空列表则清空画布，`activeSessionId: null`）
-- [ ] Archive → session 从主列表消失，点击 Archived 筛选可见
-- [ ] Rename：双击 / 菜单均可触发；空标题不保存；Esc 取消
-- [ ] Hover 时 `...` 按钮出现（视觉提示），右键触发菜单
-- [ ] All Sessions 不显示 archived session
-- [ ] 3 种 Empty State 正常显示
-- [ ] HMR 热更新后不出现 pendingDeletion 卡死问题
+- [x] 右键弹出 6 项菜单：Rename / Status▶ / Archive / Delete
+- [x] Status 子菜单显示 4 个选项，当前 status 有 ✓ 标记
+- [x] Delete 后 Undo Toast，5 秒内可撤销
+- [x] 删除当前激活 session → 自动切换到下一个（空列表则清空画布，`activeSessionId: null`）
+- [x] Archive → session 从主列表消失，点击 Archived 筛选可见
+- [x] Rename：双击 / 菜单均可触发；空标题不保存；Esc 取消
+- [x] Hover 时 `...` 按钮出现（视觉提示），右键触发菜单
+- [x] All Sessions 不显示 archived session
+- [x] 3 种 Empty State 正常显示
+- [x] HMR 热更新后不出现 pendingDeletion 卡死问题
 
 ### P1（搜索键盘 PR）—— 6 个 Task
 
-- [ ] 时间分组动态计算，TODAY/YESTERDAY/THIS WEEK/LAST WEEK/THIS MONTH/月份
-- [ ] 新建 session 次日刷新后正确显示在 YESTERDAY（本地日历日期判断）
-- [ ] Ctrl+K 展开搜索框，Esc 收起
-- [ ] 搜索实时过滤，AND Status Filter，高亮匹配字符
-- [ ] 搜索词含特殊字符不崩溃（escapeRegExp）
-- [ ] 搜索无结果时显示提示 + 清除按钮
-- [ ] ↑↓ 导航不切换 canvas（focusedSessionId ≠ activeSessionId）
-- [ ] Enter 激活，F2 重命名，Delete 删除，Esc 逐层取消
+- [x] 时间分组动态计算，TODAY/YESTERDAY/THIS WEEK/LAST WEEK/THIS MONTH/月份
+- [x] 新建 session 次日刷新后正确显示在 YESTERDAY（本地日历日期判断）
+- [x] Ctrl+K 展开搜索框，Esc 收起
+- [x] 搜索实时过滤，AND Status Filter，高亮匹配字符
+- [x] 搜索词含特殊字符不崩溃（escapeRegExp）
+- [x] 搜索无结果时显示提示 + 清除按钮
+- [x] ↑↓ 导航不切换 canvas（focusedSessionId ≠ activeSessionId）
+- [x] Enter 激活，F2 重命名，Delete 删除，Esc 逐层取消
 
 ---
 

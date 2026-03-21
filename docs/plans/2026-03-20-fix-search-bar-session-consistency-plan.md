@@ -38,7 +38,7 @@ git checkout -b fix/search-bar-session-consistency
 ```
 
 **验证**:
-- [ ] `git branch --show-current` 输出 `fix/search-bar-session-consistency`
+- [x] `git branch --show-current` 输出 `fix/search-bar-session-consistency`
 
 ---
 
@@ -47,8 +47,8 @@ git checkout -b fix/search-bar-session-consistency
 **文件**: `src/store/session-store.ts`
 
 **操作**:
-- [ ] 在 `SessionState` interface 添加方法签名
-- [ ] 在 store 实现中添加方法
+- [x] 在 `SessionState` interface 添加方法签名
+- [x] 在 store 实现中添加方法
 
 **代码**:
 
@@ -69,7 +69,7 @@ git checkout -b fix/search-bar-session-consistency
 ```
 
 **验证**:
-- [ ] TypeScript 无报错（`pnpm tsc --noEmit`）
+- [x] TypeScript 无报错（`pnpm tsc --noEmit`）
 
 ---
 
@@ -78,12 +78,12 @@ git checkout -b fix/search-bar-session-consistency
 **文件**: `src/canvas/search-bar.tsx`
 
 **操作**:
-- [ ] 移除 `isSubmitted` 本地状态
-- [ ] 从 canvas store 派生 `isEmpty`（`nodes.length === 0`）
-- [ ] 添加 `useEffect` 在画布清空时重置表单
-- [ ] `fixed` → `absolute`（定位修复）
-- [ ] 移除 Input 的 `disabled={isSubmitted}`
-- [ ] 搜索成功后更新 session 标题（≤20字符，超出截断加 `...`）
+- [x] 移除 `isSubmitted` 本地状态
+- [x] 从 canvas store 派生 `isEmpty`（`nodes.length === 0`）
+- [x] 添加 `useEffect` 在画布清空时重置表单
+- [x] `fixed` → `absolute`（定位修复）
+- [x] 移除 Input 的 `disabled={isSubmitted}`
+- [x] 搜索成功后更新 session 标题（≤20字符，超出截断加 `...`）
 
 **完整替换文件**:
 ```tsx
@@ -198,11 +198,11 @@ export function SearchBar() {
 ```
 
 **验证**:
-- [ ] 新建 session → 搜索框出现
-- [ ] 搜索后 → 搜索框消失，画布有节点
-- [ ] 切换到空 session → 搜索框自动出现且输入框已清空
-- [ ] 切换回有节点的 session → 搜索框不出现
-- [ ] `pnpm tsc --noEmit` 无报错
+- [x] 新建 session → 搜索框出现
+- [x] 搜索后 → 搜索框消失，画布有节点
+- [x] 切换到空 session → 搜索框自动出现且输入框已清空
+- [x] 切换回有节点的 session → 搜索框不出现
+- [x] `pnpm tsc --noEmit` 无报错
 
 ---
 
@@ -239,9 +239,9 @@ export function SearchBar() {
 ```
 
 **验证**:
-- [ ] 断开网络或使用无效 API key，点击「探索」后报错
-- [ ] 报错后画布恢复空白，搜索框重新出现
-- [ ] 错误提示文字显示「探索失败，请重试」
+- [x] 断开网络或使用无效 API key，点击「探索」后报错
+- [x] 报错后画布恢复空白，搜索框重新出现
+- [x] 错误提示文字显示「探索失败，请重试」
 
 ---
 
@@ -250,9 +250,9 @@ export function SearchBar() {
 **文件**: `src/canvas/canvas-toolbar.tsx`
 
 **操作**:
-- [ ] 引入 `RotateCcw` 图标（lucide-react，已安装）
-- [ ] 订阅 `clearCanvas` 和 `hasNodes`（`nodes.length > 0`）
-- [ ] 按钮仅在有节点时显示，点击前需用户确认
+- [x] 引入 `RotateCcw` 图标（lucide-react，已安装）
+- [x] 订阅 `clearCanvas` 和 `hasNodes`（`nodes.length > 0`）
+- [x] 按钮仅在有节点时显示，点击前需用户确认
 
 **完整替换文件**:
 ```tsx
@@ -319,19 +319,19 @@ export function CanvasToolbar() {
 ```
 
 **验证**:
-- [ ] 空画布时，工具栏只有「文本」和「适应视口」，无「重新探索」
-- [ ] 搜索后有节点时，工具栏出现「重新探索」按钮
-- [ ] 点击「重新探索」→ 确认弹窗 → 确认后画布清空，搜索框重现
-- [ ] 点击「重新探索」→ 取消 → 画布不变
+- [x] 空画布时，工具栏只有「文本」和「适应视口」，无「重新探索」
+- [x] 搜索后有节点时，工具栏出现「重新探索」按钮
+- [x] 点击「重新探索」→ 确认弹窗 → 确认后画布清空，搜索框重现
+- [x] 点击「重新探索」→ 取消 → 画布不变
 
 ---
 
 ### Task 6: 验证 Session 标题更新
 
 **操作（验证，无需额外改代码）**:
-- [ ] 新建 session，输入「我想开发一款营销软件」点击探索
-- [ ] 检查左侧 session 列表，标题是否变为「我想开发一款营销软件」（≤20字）
-- [ ] 输入长文本（>20字），确认标题截断加 `...`
+- [x] 新建 session，输入「我想开发一款营销软件」点击探索
+- [x] 检查左侧 session 列表，标题是否变为「我想开发一款营销软件」（≤20字）
+- [x] 输入长文本（>20字），确认标题截断加 `...`
 
 ---
 
@@ -379,13 +379,13 @@ gh pr create \
 
 ## Test plan
 
-- [ ] 新建 session → 搜索框出现
-- [ ] 搜索后 → 搜索框消失
-- [ ] 切换空 session → 搜索框重现且输入框已清空
-- [ ] 切换有内容 session → 搜索框不出现
-- [ ] 模拟 AI 报错 → 搜索框保持可见，显示错误提示
-- [ ] 工具栏「重新探索」清空画布后搜索框重现
-- [ ] session 标题在搜索后自动更新
+- [x] 新建 session → 搜索框出现
+- [x] 搜索后 → 搜索框消失
+- [x] 切换空 session → 搜索框重现且输入框已清空
+- [x] 切换有内容 session → 搜索框不出现
+- [x] 模拟 AI 报错 → 搜索框保持可见，显示错误提示
+- [x] 工具栏「重新探索」清空画布后搜索框重现
+- [x] session 标题在搜索后自动更新
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
@@ -396,13 +396,13 @@ EOF
 
 ## Acceptance Criteria
 
-- [ ] 切换到任意空画布 session，搜索框自动出现（核心修复）
-- [ ] 切换到有节点的 session，搜索框不出现
-- [ ] 删除 session 所有节点后，搜索框自动重现
-- [ ] 搜索失败后，画布清空，搜索框保持可见，显示错误提示
-- [ ] 搜索框定位相对于画布容器，侧边栏宽度变化时不偏移
-- [ ] 工具栏「重新探索」按钮在有节点时出现，无节点时隐藏
-- [ ] 搜索成功后 session 标题更新为搜索词（≤20字）
+- [x] 切换到任意空画布 session，搜索框自动出现（核心修复）
+- [x] 切换到有节点的 session，搜索框不出现
+- [x] 删除 session 所有节点后，搜索框自动重现
+- [x] 搜索失败后，画布清空，搜索框保持可见，显示错误提示
+- [x] 搜索框定位相对于画布容器，侧边栏宽度变化时不偏移
+- [x] 工具栏「重新探索」按钮在有节点时出现，无节点时隐藏
+- [x] 搜索成功后 session 标题更新为搜索词（≤20字）
 
 ## 影响文件
 
