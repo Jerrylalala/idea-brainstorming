@@ -110,13 +110,14 @@ export function SessionContextMenu({ session, onRename, children }: SessionConte
 interface SessionDropdownMenuProps {
   session: SessionItem
   onRename: () => void
+  onOpenChange?: (open: boolean) => void
 }
 
-export function SessionDropdownMenu({ session, onRename }: SessionDropdownMenuProps) {
+export function SessionDropdownMenu({ session, onRename, onOpenChange }: SessionDropdownMenuProps) {
   const { handleDelete, handleArchive, handleStatus } = useSessionMenuActions(session, onRename)
 
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
         <button
           onClick={(e) => e.stopPropagation()}
