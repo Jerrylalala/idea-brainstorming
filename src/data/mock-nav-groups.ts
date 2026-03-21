@@ -6,7 +6,7 @@ export const mockNavGroups: NavGroup[] = [
         title: 'All Sessions',
         items: [
             { label: 'Backlog',      icon: Circle, color: 'text-slate-400',  filter: 'backlog' },
-            { label: 'Todo',         icon: Circle, color: 'text-slate-400',  filter: 'todo' },
+            { label: 'Todo',         icon: Circle, color: 'text-green-500',  filter: 'todo' },
             { label: 'Needs Review', icon: Circle, color: 'text-orange-500', filter: 'needs-review' },
             { label: 'Done',         icon: Circle, color: 'text-violet-500', filter: 'done' },
             { label: 'Archived',     icon: Archive, color: 'text-slate-400', filter: 'archived' },
