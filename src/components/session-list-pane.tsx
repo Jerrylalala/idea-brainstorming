@@ -1,11 +1,11 @@
 import { useMemo, useEffect, useRef, useState } from 'react';
-import { Circle, MoreHorizontal, Search, X } from 'lucide-react';
+import { MoreHorizontal, Search, X } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { useSessionStore } from '@/store/session-store';
 import { useUIStore } from '@/store/ui-store';
-import { SessionContextMenu } from '@/components/session-context-menu';
-import { getSessionGroup, formatSessionTime, SESSION_GROUP } from '@/lib/session-utils';
+import { SessionContextMenu, SessionDropdownMenu } from '@/components/session-context-menu';
+import { getSessionGroup, formatSessionTime, SESSION_GROUP, StatusDot } from '@/lib/session-utils';
 import { useSessionKeyboard } from '@/hooks/use-session-keyboard';
 import type { SessionItem } from '@/types/session';
 
@@ -189,8 +189,8 @@ export function SessionListPane() {
                 {isSelected && (
                   <div className="absolute left-0 top-1 bottom-1 w-[2px] rounded-full bg-violet-500" />
                 )}
-                <div className="flex min-w-0 items-center gap-3">
-                  <Circle className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <div className="flex min-w-0 items-center gap-2">
+                  <StatusDot status={session.status ?? 'backlog'} />
                   {isRenaming ? (
                     <input
                       autoFocus
@@ -210,7 +210,7 @@ export function SessionListPane() {
                   )}
                 </div>
                 {isHovered && !isRenaming ? (
-                  <MoreHorizontal className="h-4 w-4 shrink-0 text-slate-400" />
+                  <SessionDropdownMenu session={session} onRename={() => startRename(session.id)} />
                 ) : (
                   <span className="text-xs text-slate-400">{formatSessionTime(session.createdAt)}</span>
                 )}
