@@ -7,7 +7,7 @@ export const STATUS_CONFIG: Record<
   { label: string; color: string; filled: boolean }
 > = {
   backlog:        { label: 'Backlog',      color: '#94a3b8', filled: false },
-  todo:           { label: 'Todo',         color: '#94a3b8', filled: false },
+  todo:           { label: 'Todo',         color: '#22c55e', filled: true  },
   'needs-review': { label: 'Needs Review', color: '#f97316', filled: true  },
   done:           { label: 'Done',         color: '#8b5cf6', filled: true  },
   archived:       { label: 'Archived',     color: '#94a3b8', filled: false },

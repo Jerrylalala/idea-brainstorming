@@ -74,6 +74,7 @@ export function SessionListPane() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
 
@@ -209,8 +210,12 @@ export function SessionListPane() {
                     <HighlightedTitle title={session.title} query={searchQuery} />
                   )}
                 </div>
-                {isHovered && !isRenaming ? (
-                  <SessionDropdownMenu session={session} onRename={() => startRename(session.id)} />
+                {(isHovered || openMenuId === session.id) && !isRenaming ? (
+                  <SessionDropdownMenu
+                    session={session}
+                    onRename={() => startRename(session.id)}
+                    onOpenChange={(open) => setOpenMenuId(open ? session.id : null)}
+                  />
                 ) : (
                   <span className="text-xs text-slate-400">{formatSessionTime(session.createdAt)}</span>
                 )}
