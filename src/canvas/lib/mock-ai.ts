@@ -1,4 +1,4 @@
-import type { AIClient, ChatRequest, ChatChunk, DirectionRequest, Direction } from '../types'
+import type { AIClient, ChatRequest, ChatChunk, DirectionRequest, Direction, SummaryRequest, SummaryResult } from '../types'
 
 // 根据用户输入关键词匹配不同回复，模拟真实 AI 的多样性
 const TOPIC_RESPONSES: { keywords: string[]; response: string }[] = [
@@ -171,5 +171,44 @@ export class MockAIClient implements AIClient {
     // 返回 5-8 个方向
     const count = 5 + Math.floor(Math.random() * 4)
     return matched.slice(0, count)
+  }
+
+  async generateSummary(input: SummaryRequest): Promise<SummaryResult> {
+    // 模拟 1200-1800ms 延迟（综合分析比方向生成稍慢）
+    await new Promise(r => setTimeout(r, 1200 + Math.random() * 600))
+
+    const confirmedCount = input.confirmedDirections.length
+    const pendingCount = input.pendingDirections.length
+
+    return {
+      confirmedDecisions: {
+        title: '已确认决策',
+        items: confirmedCount > 0
+          ? input.confirmedDirections.map(d => `选择了「${d.title}」方向：${d.summary}`)
+          : ['暂无已确认的技术决策'],
+      },
+      openQuestions: {
+        title: '待决策问题',
+        items: pendingCount > 0
+          ? input.pendingDirections.map(d => `${d.title}方向尚未确认：${d.summary}`)
+          : ['技术实现路径尚未最终确定', '目标用户的优先级需要进一步明确'],
+      },
+      overlookedConsiderations: {
+        title: '可能遗漏的考量',
+        items: [
+          '错误处理和边界情况设计',
+          '数据持久化和备份策略',
+          '性能预期和扩展性边界',
+        ],
+      },
+      suggestedNextSteps: {
+        title: '建议下一步',
+        items: [
+          '基于已确认方向搭建最小可运行原型（MVP）',
+          '对目标用户做 2-3 次访谈验证核心假设',
+          `确认${pendingCount > 0 ? `剩余 ${pendingCount} 个待定方向` : '技术栈'}后开始详细设计`,
+        ],
+      },
+    }
   }
 }

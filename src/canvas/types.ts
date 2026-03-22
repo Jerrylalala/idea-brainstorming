@@ -74,6 +74,26 @@ export type ReferenceEdgeData = {
 
 export type CanvasEdge = Edge<ReferenceEdgeData>
 
+// 综合分析类型（与 src/shared/types.ts 保持形状一致）
+export type SummarySection = {
+  title: string
+  items: string[]
+}
+
+export type SummaryResult = {
+  confirmedDecisions: SummarySection
+  openQuestions: SummarySection
+  overlookedConsiderations: SummarySection
+  suggestedNextSteps: SummarySection
+}
+
+export type SummaryRequest = {
+  confirmedDirections: { title: string; summary: string }[]
+  pendingDirections: { title: string; summary: string }[]
+  textNodeContents: string[]
+  chatHighlights: string[]
+}
+
 // === AI 接口 ===
 
 export type ChatRequest = {
@@ -107,4 +127,5 @@ export type DirectionRequest = {
 export interface AIClient {
   streamChat(input: ChatRequest, signal?: AbortSignal): AsyncGenerator<ChatChunk>
   generateDirections(input: DirectionRequest, signal?: AbortSignal): Promise<Direction[]>
+  generateSummary(input: SummaryRequest, signal?: AbortSignal): Promise<SummaryResult>
 }

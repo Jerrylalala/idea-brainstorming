@@ -2,8 +2,8 @@
 import { Hono } from 'hono'
 import { streamText, generateText } from 'ai'
 import { buildModel } from './provider'
-import { buildDirectionPrompt, parseDirectionsJSON } from '../src/shared/prompt-builder'
-import type { ChatChunk, DirectionRequest } from '../src/shared/types'
+import { buildDirectionPrompt, parseDirectionsJSON, buildSummaryPrompt, parseSummaryJSON } from '../src/shared/prompt-builder'
+import type { ChatChunk, DirectionRequest, SummaryRequest, SummaryResult } from '../src/shared/types'
 
 // 公共请求体类型（P2-3: 去重）
 type AIProxyBody = {
@@ -173,6 +173,25 @@ app.post('/api/directions', async (c) => {
   })
   const directions = parseDirectionsJSON(result.text)
   return c.json(directions)
+})
+
+// === POST /api/summary — 非流式综合分析 ===
+app.post('/api/summary', async (c) => {
+  const body = await c.req.json<AIProxyBody & { input: SummaryRequest }>()
+
+  const sumErr = validateAIProxyBody(body)
+  if (sumErr) return c.json({ error: sumErr }, 400)
+
+  const languageModel = buildModel(body.format, body.apiKey, body.baseURL, body.model)
+  const result = await generateText({
+    model: languageModel,
+    messages: [{ role: 'user', content: buildSummaryPrompt(body.input) }],
+    abortSignal: c.req.raw.signal,
+    maxRetries: 0,
+  })
+
+  const summary: SummaryResult = parseSummaryJSON(result.text)
+  return c.json(summary)
 })
 
 // === POST /api/sniff — 并行格式嗅探 ===

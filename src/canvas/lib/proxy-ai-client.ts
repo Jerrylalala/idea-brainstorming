@@ -1,5 +1,5 @@
 // 前端代理 Client — 所有 AI 请求走 /api/* 同源路由，由后端转发
-import type { AIClient, ChatRequest, ChatChunk, DirectionRequest, Direction } from '../types'
+import type { AIClient, ChatRequest, ChatChunk, DirectionRequest, Direction, SummaryRequest, SummaryResult } from '../types'
 import type { Connection } from './ai-config-store'
 
 export type ConnectionConfig = Pick<Connection, 'format' | 'baseURL' | 'apiKey' | 'model'>
@@ -77,6 +77,23 @@ export class ProxyAIClient implements AIClient {
 
     if (!res.ok) {
       // Fix 046: 截断并转义响应体，防止潜在 XSS
+      const raw = await res.text()
+      const safeBody = raw.slice(0, 200).replace(/[<>&"']/g, c => `&#${c.charCodeAt(0)};`)
+      throw new Error(`HTTP ${res.status}: ${safeBody}`)
+    }
+
+    return res.json()
+  }
+
+  async generateSummary(input: SummaryRequest, signal?: AbortSignal): Promise<SummaryResult> {
+    const res = await fetch('/api/summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...this.config, input }),
+      signal,
+    })
+
+    if (!res.ok) {
       const raw = await res.text()
       const safeBody = raw.slice(0, 200).replace(/[<>&"']/g, c => `&#${c.charCodeAt(0)};`)
       throw new Error(`HTTP ${res.status}: ${safeBody}`)

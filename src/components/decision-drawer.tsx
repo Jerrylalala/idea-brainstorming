@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useUIStore } from '@/store/ui-store';
 import { useCanvasStore } from '@/canvas/store/canvas-store';
-import type { DirectionCanvasNode } from '@/canvas/types';
+import type { DirectionCanvasNode, SummaryResult } from '@/canvas/types';
 import {
   DndContext,
   DragOverlay,
@@ -172,6 +172,10 @@ export function DecisionDrawer() {
   const directionNodes = useCanvasStore(panelSelector);
   const removeFromPanel = useCanvasStore((s) => s.removeFromPanel);
   const moveToCategory = useCanvasStore((s) => s.moveToCategory);
+  const summaryStatus = useCanvasStore(s => s.summaryStatus);
+  const summaryResult = useCanvasStore(s => s.summaryResult);
+  const generateSummary = useCanvasStore(s => s.generateSummary);
+  const clearSummary = useCanvasStore(s => s.clearSummary);
 
   // 折叠状态管理
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -450,6 +454,62 @@ export function DecisionDrawer() {
 
       {rightDrawerOpen && (
         <ScrollArea className="h-[calc(100vh-92px)]">
+          {/* AI 综合分析区块 */}
+          <div className="px-4 pt-3 pb-2 border-b border-neutral-800">
+            <button
+              onClick={summaryResult ? clearSummary : generateSummary}
+              disabled={summaryStatus === 'loading'}
+              className="w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium
+                bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed
+                text-white transition-colors"
+            >
+              {summaryStatus === 'loading' ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  正在分析...
+                </>
+              ) : summaryResult ? (
+                '清除分析结果'
+              ) : (
+                '✦ AI 综合分析'
+              )}
+            </button>
+
+            {summaryStatus === 'error' && (
+              <p className="mt-2 text-xs text-red-400 text-center">分析失败，请重试</p>
+            )}
+
+            {summaryResult && (
+              <div className="mt-3 space-y-3">
+                {(
+                  [
+                    summaryResult.confirmedDecisions,
+                    summaryResult.openQuestions,
+                    summaryResult.overlookedConsiderations,
+                    summaryResult.suggestedNextSteps,
+                  ] as SummaryResult[keyof SummaryResult][]
+                ).map((section) => (
+                  section.items.length > 0 && (
+                    <div key={section.title}>
+                      <h4 className="text-xs font-semibold text-neutral-400 mb-1">{section.title}</h4>
+                      <ul className="space-y-1">
+                        {section.items.map((item, i) => (
+                          <li key={i} className="text-xs text-neutral-300 flex gap-1.5">
+                            <span className="mt-0.5 shrink-0 text-violet-400">•</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )
+                ))}
+              </div>
+            )}
+          </div>
+
           <DndContext
             collisionDetection={collisionDetection}
             onDragStart={handleDragStart}
