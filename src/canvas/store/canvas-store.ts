@@ -5,7 +5,7 @@ import {
 } from '@xyflow/react'
 import type {
   CanvasNode, CanvasEdge, ChatCanvasNode, DirectionCanvasNode,
-  ChatMessage, SourceRef,
+  ChatMessage, SourceRef, SummaryResult,
 } from '../types'
 import { createTextNode, createChatNode, createEdge, createDirectionNode, createIdeaNode } from '../lib/node-factory'
 import { aiClient } from '../lib/ai-client'
@@ -45,6 +45,12 @@ interface CanvasState {
   confirmDirection: (nodeId: string) => void
   pendingDirection: (nodeId: string) => void
 
+  // 综合分析操作（P2b）
+  summaryStatus: 'idle' | 'loading' | 'error'
+  summaryResult: SummaryResult | null
+  generateSummary: () => Promise<void>
+  clearSummary: () => void
+
   // 面板操作
   removeFromPanel: (nodeId: string) => void
   moveToCategory: (nodeId: string, newStatus: 'confirmed' | 'pending' | 'idle') => void
@@ -68,6 +74,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
   lastDeleted: null,
   layoutVersion: 0,
   pendingFocusNodeIds: [],
+  summaryStatus: 'idle' as const,
+  summaryResult: null,
   setPendingFocusNodes: (parentId, childIds) => {
     set({ pendingFocusNodeIds: [parentId, ...childIds] })
   },
@@ -207,7 +215,23 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
 
     // 构建 prompt 并流式调用 AI
     const currentNode = get().nodes.find((n) => n.id === nodeId) as ChatCanvasNode
-    const systemPrompt = buildSystemPrompt(currentNode.data.sourceRefs)
+
+    // 从画布读取上下文，打破节点孤岛（P1）
+    const allNodes = get().nodes
+    const confirmedDirections = allNodes
+      .filter(n => n.type === 'direction' && (n as DirectionCanvasNode).data.status === 'confirmed')
+      .map(n => (n as DirectionCanvasNode).data.title)
+
+    const textNodeSummaries = allNodes
+      .filter(n => n.type === 'text')
+      .map(n => (n.data as { content: string }).content.slice(0, 100).trim())
+      .filter(Boolean)
+
+    const canvasContext = (confirmedDirections.length > 0 || textNodeSummaries.length > 0)
+      ? { confirmedDirections, textNodeSummaries }
+      : undefined
+
+    const systemPrompt = buildSystemPrompt(currentNode.data.sourceRefs, canvasContext)
     const fullMessages = buildMessages(systemPrompt, currentNode.data.messages)
 
     const assistantMsgId = `msg-${Date.now()}-assistant`
@@ -552,6 +576,55 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
           : n
       ) as CanvasNode[],
     }))
+  },
+
+  generateSummary: async () => {
+    const { nodes } = get()
+
+    const confirmedDirections = nodes
+      .filter(n => n.type === 'direction' && (n as DirectionCanvasNode).data.status === 'confirmed')
+      .map(n => ({
+        title: (n as DirectionCanvasNode).data.title,
+        summary: (n as DirectionCanvasNode).data.summary,
+      }))
+
+    const pendingDirections = nodes
+      .filter(n => n.type === 'direction' && (n as DirectionCanvasNode).data.status === 'pending')
+      .map(n => ({
+        title: (n as DirectionCanvasNode).data.title,
+        summary: (n as DirectionCanvasNode).data.summary,
+      }))
+
+    const textNodeContents = nodes
+      .filter(n => n.type === 'text')
+      .map(n => (n.data as { content: string }).content.slice(0, 300))
+      .filter(Boolean)
+
+    const chatHighlights = nodes
+      .filter(n => n.type === 'chat')
+      .flatMap(n => {
+        const msgs = (n.data as ChatCanvasNode['data']).messages
+        const last = [...msgs].reverse().find(m => m.role === 'assistant')
+        return last ? [last.text.slice(0, 200)] : []
+      })
+
+    set({ summaryStatus: 'loading' })
+
+    try {
+      const result = await aiClient.generateSummary({
+        confirmedDirections,
+        pendingDirections,
+        textNodeContents,
+        chatHighlights,
+      })
+      set({ summaryStatus: 'idle', summaryResult: result })
+    } catch {
+      set({ summaryStatus: 'error' })
+    }
+  },
+
+  clearSummary: () => {
+    set({ summaryResult: null, summaryStatus: 'idle' })
   },
 
   removeFromPanel: (nodeId) => {
